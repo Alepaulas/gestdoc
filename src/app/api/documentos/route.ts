@@ -1,70 +1,87 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { query, queryOne, execute } from "@/lib/db";
-import { gerarId, formatDate, calcStatus } from "@/lib/utils";
-import { sendEmail, htmlAprovacao } from "@/lib/gmail";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const sp = new URL(req.url).searchParams;
-  const status = sp.get("status"); const search = sp.get("search");
-  const cat = sp.get("categoriaId"); const page = parseInt(sp.get("page")||"1");
-  const limit = 20; const offset = (page-1)*limit;
+  const search = sp.get("search") ?? "";
+  const status = sp.get("status") ?? "";
+  const tipo = sp.get("categoriaId") ?? "";
+  const page = parseInt(sp.get("page") ?? "1");
+  const limit = 20;
 
-  let where = "WHERE d.status!='OBSOLETO'";
-  const params: any[] = [];
-  if (status) { where += " AND d.status=?"; params.push(status); }
-  if (cat) { where += " AND d.categoriaId=?"; params.push(cat); }
-  if (search) { where += " AND (d.titulo LIKE ? OR d.codigo LIKE ?)"; params.push(`%${search}%`,`%${search}%`); }
+  const where: any = { status:{ not:"OBSOLETO" } };
+  if (search) where.OR = [{ titulo:{ contains:search } }, { codigo:{ contains:search } }];
+  if (status) where.status = status;
+  if (tipo) where.tipoId = tipo;
 
-  const documentos = await query<any>(`
-    SELECT d.*,c.nome as catNome,c.sigla,c.cor,
-           a.nome as area,s.nome as setor,u.nome as unidade,
-           us.name as responsavelNome,us.email as responsavelEmail,us.image as responsavelImg
-    FROM Documento d
-    JOIN Categoria c ON d.categoriaId=c.id
-    JOIN Area a ON d.areaId=a.id JOIN Setor s ON a.setorId=s.id JOIN Unidade u ON s.unidadeId=u.id
-    JOIN User us ON d.responsavelId=us.id
-    ${where} ORDER BY d.dataRevisao ASC LIMIT ? OFFSET ?`,
-    [...params, limit, offset]);
+  const [documentos, total] = await Promise.all([
+    prisma.documento.findMany({
+      where, include:{
+        tipo:true,
+        area:{ include:{ setor:{ include:{ unidade:true } } } },
+        responsavel:{ select:{ id:true, name:true, email:true, image:true } },
+      },
+      orderBy:{ proximaRevisao:"asc" },
+      skip:(page-1)*limit, take:limit,
+    }),
+    prisma.documento.count({ where }),
+  ]);
 
-  const total = (await queryOne<any>(`SELECT COUNT(*) as c FROM Documento d ${where}`, params))?.c ?? 0;
-  return NextResponse.json({ documentos, total, page, limit });
+  return NextResponse.json({
+    documentos: documentos.map(d => ({
+      ...d,
+      catNome: d.tipo.nome, sigla: d.tipo.sigla, cor: d.tipo.cor,
+      area: d.area.nome, setor: d.area.setor.nome, unidade: d.area.setor.unidade.nome,
+      responsavelNome: d.responsavel.name, responsavelEmail: d.responsavel.email,
+    })),
+    total, page, limit,
+  });
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if ((session.user as any).role === "VIEWER") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if ((session.user as any).role === "VIEWER")
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { titulo,categoriaId,areaId,responsavelId,versao,dataEmissao,dataRevisao,descricao,driveFileId,driveFileUrl,driveFileName,itensONA } = body;
+  const { titulo, tipoId, areaId, responsavelId, versao, dataPadronizacao, dataRevisao, proximaRevisao, descricao, observacao, linkEditavel, linkPdf, itensONA } = body;
 
-  const cat = await queryOne<any>("SELECT * FROM Categoria WHERE id=?", [categoriaId]);
-  const count = (await queryOne<any>("SELECT COUNT(*) as c FROM Documento WHERE categoriaId=?", [categoriaId]))?.c ?? 0;
-  const codigo = `${cat?.sigla??'DOC'}-${String(count+1).padStart(3,"0")}`;
-  const id = gerarId();
-  const status = calcStatus(dataRevisao, "VIGENTE");
+  // Gera código: AAA.XXX.000
+  const tipo = await prisma.tipoDocumento.findUnique({ where:{ id:tipoId } });
+  const area = await prisma.area.findUnique({ where:{ id:areaId }, include:{ setor:{ include:{ unidade:true } } } });
+  const count = await prisma.documento.count({ where:{ tipoId, areaId } });
+  const codigo = `${tipo?.sigla}.${area?.sigla}.${String(count+1).padStart(3,"0")}`;
 
-  await execute(`INSERT INTO Documento(id,codigo,titulo,versao,status,dataEmissao,dataRevisao,descricao,categoriaId,areaId,responsavelId,driveFileId,driveFileUrl,driveFileName) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id,codigo,titulo,versao||"1.0",status,dataEmissao,dataRevisao,descricao||null,categoriaId,areaId,responsavelId,driveFileId||null,driveFileUrl||null,driveFileName||null]);
+  // Calculates automatic status
+  const agora = new Date();
+  const rev = new Date(proximaRevisao ?? dataRevisao);
+  const diff = Math.ceil((rev.getTime() - agora.getTime()) / (1000 * 60 * 60 * 24));
+  const status = diff < 0 ? "VENCIDO" : diff <= 30 ? "VENCENDO" : "VIGENTE";
 
-  if (itensONA?.length) {
-    for (const itemId of itensONA) {
-      await execute("INSERT OR IGNORE INTO DocumentoItemONA(documentoId,itemONAId) VALUES(?,?)", [id, itemId]);
-    }
+  const doc = await prisma.documento.create({
+    data:{
+      titulo, codigo, tipoId, areaId, responsavelId,
+      versao: versao ?? "00",
+      status,
+      dataPadronizacao: new Date(dataPadronizacao),
+      dataRevisao: new Date(dataRevisao),
+      proximaRevisao: new Date(proximaRevisao ?? dataRevisao),
+      descricao, observacao, linkEditavel, linkPdf,
+      itensONA: itensONA?.length ? { create: itensONA.map((id:string) => ({ itemONAId:id })) } : undefined,
+    },
+    include:{ tipo:true, area:{ include:{ setor:{ include:{ unidade:true } } } }, responsavel:true },
+  });
+
+  // Audit
+  const userId = (session.user as any).id;
+  if (userId) {
+    await prisma.auditLog.create({ data:{ acao:"CRIACAO", descricao:`Documento ${codigo} criado`, documentoId:doc.id, userId } });
   }
 
-  await execute("INSERT INTO AuditLog(id,acao,descricao,documentoId,userId) VALUES(?,?,?,?,?)",
-    [gerarId(),"CRIACAO",`Documento ${codigo} criado`,id,(session.user as any).id]);
-
-  const doc = await queryOne<any>(`
-    SELECT d.*,c.nome as catNome,c.sigla,c.cor,a.nome as area,s.nome as setor,u.nome as unidade,us.name as responsavelNome
-    FROM Documento d JOIN Categoria c ON d.categoriaId=c.id
-    JOIN Area a ON d.areaId=a.id JOIN Setor s ON a.setorId=s.id JOIN Unidade u ON s.unidadeId=u.id
-    JOIN User us ON d.responsavelId=us.id WHERE d.id=?`, [id]);
-
-  return NextResponse.json(doc, { status: 201 });
+  return NextResponse.json(doc, { status:201 });
 }

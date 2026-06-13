@@ -3,64 +3,27 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String?
-  email         String?   @unique
-  emailVerified DateTime?
+  email         String?     @unique
   image         String?
-  role          String    @default("VIEWER")
-  accounts      Account[]
-  sessions      Session[]
-  documentos    Documento[] @relation("Responsavel")
-  aprovacoes    EtapaAprovacao[]
-  leituras      LeituraConfirmada[]
+  role          String      @default("VIEWER")
+  documentos    Documento[]
   auditLogs     AuditLog[]
-  treinamentos  Treinamento[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-  @@unique([identifier, token])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model Unidade {
   id        String   @id @default(cuid())
   nome      String
-  codigo    String   @unique
+  sigla     String   @unique
   setores   Setor[]
   createdAt DateTime @default(now())
 }
@@ -68,38 +31,76 @@ model Unidade {
 model Setor {
   id        String   @id @default(cuid())
   nome      String
+  sigla     String
   unidadeId String
   unidade   Unidade  @relation(fields: [unidadeId], references: [id])
   areas     Area[]
   createdAt DateTime @default(now())
+  @@index([unidadeId])
 }
 
 model Area {
   id         String      @id @default(cuid())
   nome       String
+  sigla      String
   setorId    String
   setor      Setor       @relation(fields: [setorId], references: [id])
   documentos Documento[]
   createdAt  DateTime    @default(now())
+  @@index([setorId])
 }
 
-model Categoria {
+// Tipos de documento conforme Norma Zero ISGH
+// FTI, FFO, FLU, INT, MAN, MAP, MOD, NOR, PLC, POL, PRO, PCG, POP, REG, REL
+model TipoDocumento {
   id         String      @id @default(cuid())
-  nome       String
   sigla      String      @unique
+  nome       String
+  nivel      Int         // 1, 2 ou 3 conforme Norma Zero
   cor        String      @default("#1D4ED8")
   documentos Documento[]
-  createdAt  DateTime    @default(now())
 }
 
 model ItemONA {
-  id        String              @id @default(cuid())
-  codigo    String              @unique
-  titulo    String
-  descricao String
-  nivel     Int
-  secao     String
+  id         String             @id @default(cuid())
+  codigo     String             @unique
+  titulo     String
+  descricao  String             @db.Text
+  nivel      Int
+  secao      String
   documentos DocumentoItemONA[]
+}
+
+model Documento {
+  id               String             @id @default(cuid())
+  // Codificação Norma Zero: AAA.XXX.000
+  codigo           String             @unique
+  titulo           String
+  versao           String             @default("00")
+  status           String             @default("VIGENTE")
+  dataPadronizacao DateTime
+  dataRevisao      DateTime
+  proximaRevisao   DateTime
+  descricao        String?            @db.Text
+  observacao       String?            @db.Text
+  linkEditavel     String?            // Link do WPS/Google Drive editável
+  linkPdf          String?            // Link do PDF assinado
+  driveFileId      String?
+  tipoId           String
+  areaId           String
+  responsavelId    String
+  tipo             TipoDocumento      @relation(fields: [tipoId], references: [id])
+  area             Area               @relation(fields: [areaId], references: [id])
+  responsavel      User               @relation(fields: [responsavelId], references: [id])
+  itensONA         DocumentoItemONA[]
+  revisoes         Revisao[]
+  auditLogs        AuditLog[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([tipoId])
+  @@index([areaId])
+  @@index([responsavelId])
 }
 
 model DocumentoItemONA {
@@ -108,97 +109,20 @@ model DocumentoItemONA {
   documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
   itemONA     ItemONA   @relation(fields: [itemONAId], references: [id])
   @@id([documentoId, itemONAId])
-}
-
-model Documento {
-  id                String             @id @default(cuid())
-  codigo            String             @unique
-  titulo            String
-  versao            String             @default("1.0")
-  status            String             @default("RASCUNHO")
-  dataEmissao       DateTime
-  dataRevisao       DateTime
-  descricao         String?
-  driveFileId       String?
-  driveFileUrl      String?
-  driveFileName     String?
-  categoriaId       String
-  areaId            String
-  responsavelId     String
-  categoria         Categoria          @relation(fields: [categoriaId], references: [id])
-  area              Area               @relation(fields: [areaId], references: [id])
-  responsavel       User               @relation("Responsavel", fields: [responsavelId], references: [id])
-  itensONA          DocumentoItemONA[]
-  revisoes          Revisao[]
-  aprovacoes        FluxoAprovacao[]
-  leituras          LeituraConfirmada[]
-  notificacoes      Notificacao[]
-  treinamentos      Treinamento[]
-  auditLogs         AuditLog[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-}
-
-model FluxoAprovacao {
-  id          String           @id @default(cuid())
-  documentoId String
-  status      String           @default("PENDENTE")
-  documento   Documento        @relation(fields: [documentoId], references: [id])
-  etapas      EtapaAprovacao[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-}
-
-model EtapaAprovacao {
-  id           String         @id @default(cuid())
-  fluxoId      String
-  ordem        Int
-  tipo         String
-  userId       String
-  status       String         @default("PENDENTE")
-  prazo        DateTime
-  respondidoEm DateTime?
-  comentario   String?
-  fluxo        FluxoAprovacao @relation(fields: [fluxoId], references: [id])
-  user         User           @relation(fields: [userId], references: [id])
-  createdAt    DateTime       @default(now())
-}
-
-model LeituraConfirmada {
-  id          String    @id @default(cuid())
-  documentoId String
-  userId      String
-  versao      String
-  token       String    @unique @default(cuid())
-  confirmadaEm DateTime?
-  expiresAt   DateTime
-  documento   Documento @relation(fields: [documentoId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
-  @@unique([documentoId, userId, versao])
-}
-
-model Treinamento {
-  id          String    @id @default(cuid())
-  documentoId String
-  userId      String
-  versao      String
-  status      String    @default("PENDENTE")
-  prazo       DateTime
-  concluidoEm DateTime?
-  documento   Documento @relation(fields: [documentoId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
-  createdAt   DateTime  @default(now())
+  @@index([documentoId])
+  @@index([itemONAId])
 }
 
 model Revisao {
   id          String    @id @default(cuid())
   documentoId String
   versao      String
-  descricao   String?
+  descricao   String?   @db.Text
   dataRevisao DateTime
   aprovadoPor String?
   documento   Documento @relation(fields: [documentoId], references: [id])
   createdAt   DateTime  @default(now())
+  @@index([documentoId])
 }
 
 model AuditLog {
@@ -210,29 +134,6 @@ model AuditLog {
   documento   Documento? @relation(fields: [documentoId], references: [id])
   user        User       @relation(fields: [userId], references: [id])
   createdAt   DateTime   @default(now())
-}
-
-model Notificacao {
-  id          String     @id @default(cuid())
-  tipo        String
-  mensagem    String
-  lida        Boolean    @default(false)
-  documentoId String?
-  emailEnviado Boolean   @default(false)
-  documento   Documento? @relation(fields: [documentoId], references: [id])
-  createdAt   DateTime   @default(now())
-}
-
-model DocumentoExterno {
-  id          String   @id @default(cuid())
-  titulo      String
-  orgao       String
-  numero      String
-  tipo        String
-  dataPublicacao DateTime
-  dataVigencia   DateTime?
-  url         String?
-  status      String   @default("VIGENTE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  @@index([documentoId])
+  @@index([userId])
 }

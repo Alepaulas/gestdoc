@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { query, execute } from "@/lib/db";
-import { gerarId } from "@/lib/utils";
+import { prisma } from "@/lib/db";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const cats = await query<any>(`SELECT c.*,COUNT(d.id) as total FROM Categoria c LEFT JOIN Documento d ON c.id=d.categoriaId AND d.status!='OBSOLETO' GROUP BY c.id ORDER BY c.nome`);
-  return NextResponse.json(cats);
+  const tipos = await prisma.tipoDocumento.findMany({
+    include:{ _count:{ select:{ documentos:true } } },
+    orderBy:{ sigla:"asc" },
+  });
+  return NextResponse.json(tipos);
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { nome, sigla, cor } = await req.json();
-  const id = gerarId();
-  await execute("INSERT INTO Categoria(id,nome,sigla,cor) VALUES(?,?,?,?)", [id, nome, sigla, cor||"#1D4ED8"]);
-  return NextResponse.json({ id, nome, sigla, cor }, { status: 201 });
+  if (!session || (session.user as any).role !== "ADMIN")
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { sigla, nome, nivel, cor } = await req.json();
+  const tipo = await prisma.tipoDocumento.create({ data:{ sigla, nome, nivel:parseInt(nivel), cor:cor||"#1D4ED8" } });
+  return NextResponse.json(tipo, { status:201 });
 }

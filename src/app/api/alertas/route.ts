@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { query, queryOne, execute } from "@/lib/db";
-import { gerarId, calcStatus, formatDate } from "@/lib/utils";
-import { sendEmail, htmlAlerta } from "@/lib/gmail";
+import { prisma } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -12,29 +10,22 @@ export async function POST(req: NextRequest) {
   const isAdmin = (session?.user as any)?.role === "ADMIN";
   if (!isCron && !isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const docs = await query<any>(`
-    SELECT d.*,us.email,us.name FROM Documento d JOIN User us ON d.responsavelId=us.id
-    WHERE d.status NOT IN ('OBSOLETO','RASCUNHO')`);
+  const agora = new Date();
+  const em30 = new Date(); em30.setDate(em30.getDate()+30);
 
-  const adminUser = await queryOne<any>("SELECT * FROM User WHERE role='ADMIN' LIMIT 1");
-  let updated = 0; let sent = 0;
+  const docs = await prisma.documento.findMany({
+    where:{ status:{ notIn:["OBSOLETO"] } },
+    select:{ id:true, proximaRevisao:true, status:true },
+  });
 
+  let atualizados = 0;
   for (const doc of docs) {
-    const novoStatus = calcStatus(doc.dataRevisao, doc.status);
+    const diff = Math.ceil((doc.proximaRevisao.getTime() - agora.getTime()) / (1000*60*60*24));
+    const novoStatus = diff < 0 ? "VENCIDO" : diff <= 30 ? "VENCENDO" : "VIGENTE";
     if (novoStatus !== doc.status) {
-      await execute("UPDATE Documento SET status=?,updatedAt=datetime('now') WHERE id=?", [novoStatus, doc.id]);
-      updated++;
-    }
-    if ((novoStatus === "VENCENDO" || novoStatus === "VENCIDO") && doc.email && adminUser) {
-      const ok = await sendEmail(adminUser.id, doc.email,
-        `[GestDoc] ${novoStatus === "VENCIDO" ? "🚨 Vencido" : "⚠️ Vencendo"}: ${doc.codigo}`,
-        htmlAlerta(doc.titulo, doc.codigo, novoStatus, formatDate(doc.dataRevisao), doc.id));
-      if (ok) {
-        sent++;
-        await execute("INSERT INTO Notificacao(id,tipo,mensagem,documentoId,emailEnviado) VALUES(?,?,?,?,?)",
-          [gerarId(), novoStatus, `${doc.codigo} — ${doc.titulo}`, doc.id, 1]);
-      }
+      await prisma.documento.update({ where:{ id:doc.id }, data:{ status:novoStatus } });
+      atualizados++;
     }
   }
-  return NextResponse.json({ processados: docs.length, atualizados: updated, emailsEnviados: sent });
+  return NextResponse.json({ processados:docs.length, atualizados, emailsEnviados:0 });
 }
