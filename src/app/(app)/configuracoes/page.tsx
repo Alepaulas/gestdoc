@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Shield, Bell, HardDrive, Play, CheckCircle, ExternalLink, RefreshCw, Table } from "lucide-react";
+import { Shield, Bell, HardDrive, Play, CheckCircle, RefreshCw, Table } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 export default function Configuracoes() {
@@ -58,20 +58,11 @@ export default function Configuracoes() {
             Toda vez que um documento é cadastrado ou atualizado no sistema, a planilha é atualizada automaticamente. Você também pode sincronizar manualmente.
           </p>
           <div className="flex gap-3 flex-wrap">
-            <a
-              href="https://docs.google.com/spreadsheets/d/1AhfvYOvqm8r1ouSsPCZA_nxvHSOclCALYJm-mwf4afo/edit"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5"/>
-              Abrir planilha
-            </a>
             {isAdmin && (
               <button
                 onClick={syncSheets}
                 disabled={sheetsLoading}
-                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${sheetsLoading?"animate-spin":""}`}/>
                 {sheetsLoading ? "Sincronizando..." : "Sincronizar agora"}
