@@ -101,3 +101,4 @@ src/
     ├── schema.prisma        # Schema (para referência e migração)
     └── dev.db               # Banco SQLite pré-populado
 ```
+# GestDoc
