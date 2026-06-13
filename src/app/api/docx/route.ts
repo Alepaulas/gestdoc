@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
     ano: new Date().getFullYear().toString(),
   });
 
-  return new NextResponse(buffer as unknown as BodyInit, {
+  const uint8 = new Uint8Array(buffer);
+  return new NextResponse(uint8, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="${doc.codigo}_v${doc.versao}.docx"`,
