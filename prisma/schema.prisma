@@ -14,7 +14,8 @@ model User {
   email     String?  @unique
   image     String?
   role      String   @default("VIEWER")
-  accounts  Account[]
+  accounts   Account[]
+  sessions   Session[]
   documentos Documento[]
   auditLogs AuditLog[]
   createdAt DateTime @default(now())
