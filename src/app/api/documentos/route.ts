@@ -85,3 +85,29 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(doc, { status:201 });
 }
+
+// Helper chamado após criar/atualizar documento
+async function syncDocToSheets(docId: string, session: any) {
+  try {
+    const accessToken = (session as any).accessToken;
+    const refreshToken = (session as any).refreshToken;
+    if (!accessToken) return;
+
+    const { prisma } = await import("@/lib/db");
+    const { upsertDocumentoNoSheets } = await import("@/lib/sheets");
+
+    const doc = await prisma.documento.findUnique({
+      where: { id: docId },
+      include: {
+        tipo: true,
+        area: { include: { setor: { include: { unidade: true } } } },
+        responsavel: { select: { name: true, email: true } },
+        itensONA: { include: { itemONA: true } },
+      },
+    });
+    if (doc) await upsertDocumentoNoSheets(accessToken, refreshToken, doc);
+  } catch (e) {
+    console.error("Sheets sync error:", e);
+    // Não falha a operação principal se o sync falhar
+  }
+}

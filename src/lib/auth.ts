@@ -8,7 +8,14 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: "openid email profile",
+          scope: [
+            "openid",
+            "email",
+            "profile",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/gmail.send",
+          ].join(" "),
           access_type: "offline",
           prompt: "consent",
         },
@@ -20,7 +27,9 @@ export const authOptions: NextAuthOptions = {
       const dominios = (process.env.ALLOWED_DOMAINS ?? "")
         .split(",").map(d => d.trim()).filter(Boolean);
       if (dominios.length === 0) return true;
-      return dominios.some(d => user.email?.endsWith(d));
+      const permitido = dominios.some(d => user.email?.endsWith(d));
+      if (!permitido) return "/login?error=DomainNotAllowed";
+      return true;
     },
     async jwt({ token, user, account }) {
       if (user) {
@@ -30,9 +39,10 @@ export const authOptions: NextAuthOptions = {
         token.picture = user.image;
       }
       if (account) {
+        // Guarda tokens Google na sessão JWT
         token.accessToken = account.access_token;
+        token.refreshToken = account.refresh_token;
       }
-      // role padrão — admin para primeiro usuário
       if (!token.role) {
         const adminEmail = process.env.ADMIN_EMAIL ?? "";
         token.role = token.email === adminEmail ? "ADMIN" : "EDITOR";
@@ -47,6 +57,9 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string;
         session.user.image = token.picture as string;
       }
+      // Expõe tokens Google na sessão (necessário para Sheets/Drive/Gmail)
+      (session as any).accessToken = token.accessToken;
+      (session as any).refreshToken = token.refreshToken;
       return session;
     },
   },
