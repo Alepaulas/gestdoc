@@ -3,21 +3,49 @@ generator client {
 }
 
 datasource db {
-  provider     = "mysql"
-  url          = env("DATABASE_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
   relationMode = "prisma"
 }
 
 model User {
-  id            String      @id @default(cuid())
-  name          String?
-  email         String?     @unique
-  image         String?
-  role          String      @default("VIEWER")
-  documentos    Documento[]
-  auditLogs     AuditLog[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  image     String?
+  role      String   @default("VIEWER")
+  accounts  Account[]
+  documentos Documento[]
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
 }
 
 model Unidade {
@@ -50,13 +78,11 @@ model Area {
   @@index([setorId])
 }
 
-// Tipos de documento conforme Norma Zero ISGH
-// FTI, FFO, FLU, INT, MAN, MAP, MOD, NOR, PLC, POL, PRO, PCG, POP, REG, REL
 model TipoDocumento {
   id         String      @id @default(cuid())
   sigla      String      @unique
   nome       String
-  nivel      Int         // 1, 2 ou 3 conforme Norma Zero
+  nivel      Int
   cor        String      @default("#1D4ED8")
   documentos Documento[]
 }
@@ -73,7 +99,6 @@ model ItemONA {
 
 model Documento {
   id               String             @id @default(cuid())
-  // Codificação Norma Zero: AAA.XXX.000
   codigo           String             @unique
   titulo           String
   versao           String             @default("00")
@@ -83,8 +108,8 @@ model Documento {
   proximaRevisao   DateTime
   descricao        String?            @db.Text
   observacao       String?            @db.Text
-  linkEditavel     String?            // Link do WPS/Google Drive editável
-  linkPdf          String?            // Link do PDF assinado
+  linkEditavel     String?
+  linkPdf          String?
   driveFileId      String?
   tipoId           String
   areaId           String
@@ -97,7 +122,6 @@ model Documento {
   auditLogs        AuditLog[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
-
   @@index([tipoId])
   @@index([areaId])
   @@index([responsavelId])
