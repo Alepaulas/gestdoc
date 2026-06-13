@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -20,21 +21,31 @@ export async function GET(req: NextRequest) {
 
   if (!doc) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
-  const itensONA = await query<any>(`SELECT oi.codigo,oi.titulo FROM ItemONA oi JOIN DocumentoItemONA doi ON oi.id=doi.itemONAId WHERE doi.documentoId=?`, [docId]);
+  const itensONA = await query<any>(
+    `SELECT oi.codigo,oi.titulo FROM ItemONA oi
+     JOIN DocumentoItemONA doi ON oi.id=doi.itemONAId
+     WHERE doi.documentoId=?`,
+    [docId]
+  );
 
-  const buffer = await gerarDocxSemTemplate({
+  const nodeBuffer = await gerarDocxSemTemplate({
     codigo: doc.codigo, titulo: doc.titulo, versao: doc.versao,
     categoria: doc.catNome, siglaCategoria: doc.sigla,
     unidade: doc.unidade, setor: doc.setor, area: doc.area,
-    responsavel: doc.responsavelNome, emailResponsavel: doc.responsavelEmail||"",
+    responsavel: doc.responsavelNome, emailResponsavel: doc.responsavelEmail || "",
     dataEmissao: formatDate(doc.dataEmissao), dataRevisao: formatDate(doc.dataRevisao),
-    descricao: doc.descricao||"",
+    descricao: doc.descricao || "",
     itensONA: itensONA.map((i: any) => `${i.codigo} — ${i.titulo}`).join("\n"),
     ano: new Date().getFullYear().toString(),
   });
 
-  const uint8 = new Uint8Array(buffer);
-  return new NextResponse(uint8, {
+  // Converte Node Buffer → ArrayBuffer para compatibilidade com o Edge Runtime
+  const arrayBuffer = nodeBuffer.buffer.slice(
+    nodeBuffer.byteOffset,
+    nodeBuffer.byteOffset + nodeBuffer.byteLength
+  ) as ArrayBuffer;
+
+  return new NextResponse(arrayBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="${doc.codigo}_v${doc.versao}.docx"`,
