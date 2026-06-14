@@ -22,7 +22,6 @@ const TIPOS = [
   { sigla:"REL", nome:"Regulamento" },
 ];
 
-// Áreas conforme Tabela IV da Norma Zero
 const AREAS = [
   {sigla:"AGT",nome:"Agência Transfusional"},{sigla:"ALM",nome:"Almoxarifado"},
   {sigla:"AMB",nome:"Ambulatório Geral"},{sigla:"CCG",nome:"Centro Cirúrgico Geral"},
@@ -41,10 +40,24 @@ const AREAS = [
   {sigla:"UTI",nome:"UTI Adulto"},
 ];
 
+const ITENS_ONA = [
+  { codigo:"1.2.1", titulo:"Sistema de controle de documentos" },
+  { codigo:"1.2.2", titulo:"Documentos aprovados e identificados" },
+  { codigo:"1.2.3", titulo:"Documentos obsoletos retirados" },
+  { codigo:"1.3.2", titulo:"Educação permanente" },
+  { codigo:"2.1.1", titulo:"Identificação segura do paciente" },
+  { codigo:"2.1.2", titulo:"Comunicação efetiva" },
+  { codigo:"2.1.3", titulo:"Segurança na medicação" },
+  { codigo:"2.1.5", titulo:"Prevenção de quedas" },
+  { codigo:"2.2.1", titulo:"Notificação de eventos adversos" },
+  { codigo:"3.1.1", titulo:"Ciclo PDCA" },
+];
+
 export default function NovoDocumento() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [codigoPreview, setCodigoPreview] = useState("");
+  const [naoAplicaONA, setNaoAplicaONA] = useState(false);
   const [form, setForm] = useState({
     nome: "", titulo: "", linkEditavel: "",
     tipoSigla: "", areaSigla: "",
@@ -52,11 +65,26 @@ export default function NovoDocumento() {
     status: "VIGENTE", observacao: "",
     dataPadronizacao: new Date().toLocaleDateString("pt-BR"),
     dataRevisao: "",
+    itensONASelecionados: [] as string[],
   });
 
   function updatePreview(tipoSigla: string, areaSigla: string) {
     if (tipoSigla && areaSigla) setCodigoPreview(`${tipoSigla}.${areaSigla}.001`);
     else setCodigoPreview("");
+  }
+
+  function toggleNaoAplica(checked: boolean) {
+    setNaoAplicaONA(checked);
+    setForm(f => ({ ...f, itensONASelecionados: checked ? ["N/A"] : [] }));
+  }
+
+  function toggleItemONA(codigo: string, checked: boolean) {
+    setForm(f => ({
+      ...f,
+      itensONASelecionados: checked
+        ? [...f.itensONASelecionados, codigo]
+        : f.itensONASelecionados.filter(x => x !== codigo),
+    }));
   }
 
   async function submit(e: any) {
@@ -69,6 +97,7 @@ export default function NovoDocumento() {
         ...form,
         area: AREAS.find(a => a.sigla === form.areaSigla)?.nome ?? form.areaSigla,
         tipo: `${form.tipoSigla} — ${TIPOS.find(t => t.sigla === form.tipoSigla)?.nome ?? ""}`,
+        itensONASelecionados: form.itensONASelecionados,
       }),
     });
     const data = await res.json();
@@ -84,11 +113,12 @@ export default function NovoDocumento() {
         </Link>
         <div>
           <h1 className="text-xl font-bold text-slate-900">Novo Documento</h1>
-          <p className="text-slate-500 text-sm">Código gerado automaticamente · será salvo na planilha LISTA_MESTRE</p>
+          <p className="text-slate-500 text-sm">Código gerado automaticamente · salvo na planilha LISTA_MESTRE</p>
         </div>
       </div>
 
       <form onSubmit={submit} className="space-y-5">
+        {/* Identificação */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
           <h2 className="font-bold text-slate-900 text-sm">Identificação</h2>
 
@@ -96,7 +126,7 @@ export default function NovoDocumento() {
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center gap-3">
               <span className="text-xs text-blue-600 font-medium">Código gerado automaticamente:</span>
               <span className="font-mono font-bold text-blue-800 text-sm">{codigoPreview}</span>
-              <span className="text-xs text-blue-400">(número final será ajustado ao salvar)</span>
+              <span className="text-xs text-blue-400">(número final ajustado ao salvar)</span>
             </div>
           )}
 
@@ -130,7 +160,7 @@ export default function NovoDocumento() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Responsável (NOME)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Responsável</label>
               <input value={form.nome} onChange={e=>setForm(f=>({...f,nome:e.target.value}))}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Nome do responsável"/>
@@ -151,6 +181,7 @@ export default function NovoDocumento() {
           </div>
         </div>
 
+        {/* Datas e links */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
           <h2 className="font-bold text-slate-900 text-sm">Datas e links</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -180,6 +211,39 @@ export default function NovoDocumento() {
           </div>
         </div>
 
+        {/* Itens ONA */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h2 className="font-bold text-slate-900 text-sm mb-1">Conformidade ONA</h2>
+          <p className="text-xs text-slate-400 mb-4">Selecione os itens da norma que este documento atende, ou marque "Não se aplica".</p>
+
+          <label className="flex items-center gap-3 text-sm cursor-pointer mb-4 p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+            <input type="checkbox" checked={naoAplicaONA} onChange={e => toggleNaoAplica(e.target.checked)}
+              className="rounded w-4 h-4 accent-slate-600"/>
+            <div>
+              <span className="font-semibold text-slate-700">Não se aplica à ONA</span>
+              <p className="text-xs text-slate-400 mt-0.5">Documento institucional sem vínculo com a acreditação</p>
+            </div>
+          </label>
+
+          {!naoAplicaONA && (
+            <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+              {ITENS_ONA.map(item => (
+                <label key={item.codigo} className="flex items-start gap-2 text-xs cursor-pointer p-2 hover:bg-blue-50 rounded-lg transition-colors">
+                  <input type="checkbox"
+                    checked={form.itensONASelecionados.includes(item.codigo)}
+                    onChange={e => toggleItemONA(item.codigo, e.target.checked)}
+                    className="rounded mt-0.5 accent-blue-600 flex-shrink-0 w-3.5 h-3.5"/>
+                  <div>
+                    <span className="font-mono text-blue-700 font-bold">{item.codigo}</span>
+                    <span className="text-slate-500 ml-1">{item.titulo}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Botões */}
         <div className="flex gap-3">
           <Link href="/documentos/lista-mestra"
             className="flex-1 text-center border border-slate-200 text-slate-700 py-3 rounded-xl text-sm font-semibold hover:bg-slate-50">
