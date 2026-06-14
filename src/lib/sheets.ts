@@ -3,7 +3,22 @@ import { google } from "googleapis";
 const SPREADSHEET_ID = "1AhfvYOvqm8r1ouSsPCZA_nxvHSOclCALYJm-mwf4afo";
 const SHEET_NAME = "LISTA_MESTRE";
 
-// Colunas exatas conforme especificação
+// Mapeamento exato das colunas conforme planilha
+const COLS = {
+  NOME: 0,
+  DOCUMENTO: 1,
+  LINK_EDITAVEL: 2,
+  CODIGO: 3,
+  TIPO: 4,
+  LOCALIZACAO: 5,
+  UNIDADE: 6,
+  AREA: 7,
+  STATUS: 8,
+  OBS: 9,
+  DATA_PADRONIZACAO: 10,
+  DATA_REVISAO: 11,
+};
+
 const HEADERS = [
   "NOME",
   "DOCUMENTO",
@@ -19,9 +34,7 @@ const HEADERS = [
   "DATA DE REVISÃO",
 ];
 
-const RANGE_END = "L"; // coluna L = 12ª coluna
-
-async function getSheetsClient(accessToken: string, refreshToken?: string) {
+function getSheetsClient(accessToken: string, refreshToken?: string) {
   const oauth2 = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET
@@ -35,189 +48,167 @@ function fmtDate(d: Date | string | null): string {
   return new Date(d).toLocaleDateString("pt-BR");
 }
 
-function docToRow(doc: any): string[] {
-  const localizacao = [doc.area?.setor?.nome, doc.area?.nome].filter(Boolean).join(" › ");
-  return [
-    doc.responsavel?.name ?? "",                    // NOME
-    doc.titulo ?? "",                               // DOCUMENTO
-    doc.linkEditavel ?? "",                         // LINK DOCUMENTO (editável)
-    doc.codigo ?? "",                               // CÓDIGO
-    `${doc.tipo?.sigla ?? ""} — ${doc.tipo?.nome ?? ""}`, // TIPO
-    localizacao,                                    // LOCALIZAÇÃO
-    doc.area?.setor?.unidade?.nome ?? "",           // UNIDADE
-    doc.area?.nome ?? "",                           // ÁREA
-    doc.status ?? "",                               // STATUS
-    doc.observacao ?? "",                           // OBS
-    fmtDate(doc.dataPadronizacao),                  // DATA DE PADRONIZAÇÃO
-    fmtDate(doc.dataRevisao),                       // DATA DE REVISÃO
+function parseDate(s: string): Date | null {
+  if (!s) return null;
+  // Suporta dd/mm/aaaa e aaaa-mm-dd
+  if (s.includes("/")) {
+    const [d, m, y] = s.split("/");
+    return new Date(`${y}-${m}-${d}`);
+  }
+  return new Date(s);
+}
+
+// Lê todos os documentos da planilha
+export async function lerPlanilha(accessToken: string, refreshToken?: string) {
+  const sheets = getSheetsClient(accessToken, refreshToken);
+  
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SHEET_NAME}!A2:L9999`,
+  });
+
+  const rows = res.data.values ?? [];
+  
+  return rows
+    .filter(row => row[COLS.DOCUMENTO] || row[COLS.CODIGO]) // ignora linhas vazias
+    .map((row, i) => ({
+      _linha: i + 2, // linha real na planilha (1-indexed + header)
+      nome: row[COLS.NOME] ?? "",
+      titulo: row[COLS.DOCUMENTO] ?? "",
+      linkEditavel: row[COLS.LINK_EDITAVEL] ?? "",
+      codigo: row[COLS.CODIGO] ?? "",
+      tipo: row[COLS.TIPO] ?? "",
+      localizacao: row[COLS.LOCALIZACAO] ?? "",
+      unidade: row[COLS.UNIDADE] ?? "",
+      area: row[COLS.AREA] ?? "",
+      status: row[COLS.STATUS] ?? "VIGENTE",
+      observacao: row[COLS.OBS] ?? "",
+      dataPadronizacao: row[COLS.DATA_PADRONIZACAO] ?? "",
+      dataRevisao: row[COLS.DATA_REVISAO] ?? "",
+    }));
+}
+
+// Gera próximo código automático: TIPO.AREA.001
+export async function gerarCodigo(
+  accessToken: string,
+  refreshToken: string | undefined,
+  tipoSigla: string,
+  areaSigla: string
+): Promise<string> {
+  const docs = await lerPlanilha(accessToken, refreshToken);
+  const prefixo = `${tipoSigla}.${areaSigla}.`;
+  
+  const existentes = docs
+    .map(d => d.codigo)
+    .filter(c => c.startsWith(prefixo))
+    .map(c => parseInt(c.replace(prefixo, "")) || 0);
+
+  const proximo = existentes.length > 0 ? Math.max(...existentes) + 1 : 1;
+  return `${prefixo}${String(proximo).padStart(3, "0")}`;
+}
+
+// Escreve uma linha nova na planilha
+export async function adicionarNaPlanilha(
+  accessToken: string,
+  refreshToken: string | undefined,
+  doc: {
+    nome: string;
+    titulo: string;
+    linkEditavel: string;
+    codigo: string;
+    tipo: string;
+    localizacao: string;
+    unidade: string;
+    area: string;
+    status: string;
+    observacao: string;
+    dataPadronizacao: string;
+    dataRevisao: string;
+  }
+) {
+  const sheets = getSheetsClient(accessToken, refreshToken);
+  
+  const row = [
+    doc.nome,
+    doc.titulo,
+    doc.linkEditavel,
+    doc.codigo,
+    doc.tipo,
+    doc.localizacao,
+    doc.unidade,
+    doc.area,
+    doc.status || "VIGENTE",
+    doc.observacao,
+    doc.dataPadronizacao,
+    doc.dataRevisao,
   ];
-}
 
-async function getOrCreateSheet(sheets: any): Promise<number> {
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-  const existing = meta.data.sheets?.find((s: any) => s.properties?.title === SHEET_NAME);
-
-  if (existing) return existing.properties?.sheetId ?? 0;
-
-  // Renomeia a primeira aba
-  const firstSheet = meta.data.sheets?.[0];
-  if (firstSheet) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: {
-        requests: [{
-          updateSheetProperties: {
-            properties: { sheetId: firstSheet.properties?.sheetId, title: SHEET_NAME },
-            fields: "title",
-          },
-        }],
-      },
-    });
-    return firstSheet.properties?.sheetId ?? 0;
-  }
-  return 0;
-}
-
-export async function ensureHeaders(accessToken: string, refreshToken?: string) {
-  const sheets = await getSheetsClient(accessToken, refreshToken);
-  const sheetId = await getOrCreateSheet(sheets);
-
-  const res = await sheets.spreadsheets.values.get({
+  await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A1:A1`,
-  }).catch(() => null);
-
-  const hasHeader = res?.data?.values?.[0]?.[0] === "NOME";
-  if (!hasHeader) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A1`,
-      valueInputOption: "RAW",
-      requestBody: { values: [HEADERS] },
-    });
-
-    // Formata cabeçalho
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: {
-        requests: [{
-          repeatCell: {
-            range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: HEADERS.length },
-            cell: {
-              userEnteredFormat: {
-                backgroundColor: { red: 0.11, green: 0.30, blue: 0.59 },
-                textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
-                horizontalAlignment: "CENTER",
-              },
-            },
-            fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
-          },
-        }],
-      },
-    });
-  }
-  return sheetId;
-}
-
-async function findRowByCode(sheets: any, codigo: string): Promise<number | null> {
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!D:D`, // coluna D = CÓDIGO
+    range: `${SHEET_NAME}!A:L`,
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values: [row] },
   });
-  const values = res.data.values ?? [];
-  for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === codigo) return i + 1;
-  }
-  return null;
 }
 
-export async function upsertDocumentoNoSheets(
+// Atualiza uma linha existente pelo número da linha
+export async function atualizarNaPlanilha(
   accessToken: string,
   refreshToken: string | undefined,
-  doc: any
+  linha: number,
+  doc: Partial<{
+    nome: string; titulo: string; linkEditavel: string;
+    tipo: string; localizacao: string; unidade: string;
+    area: string; status: string; observacao: string;
+    dataPadronizacao: string; dataRevisao: string;
+  }>
 ) {
-  const sheets = await getSheetsClient(accessToken, refreshToken);
-  await ensureHeaders(accessToken, refreshToken);
+  const sheets = getSheetsClient(accessToken, refreshToken);
 
-  const row = docToRow(doc);
-  const existingRow = await findRowByCode(sheets, doc.codigo);
-
-  if (existingRow) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${existingRow}:${RANGE_END}${existingRow}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [row] },
-    });
-  } else {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:${RANGE_END}`,
-      valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
-      requestBody: { values: [row] },
-    });
-  }
-}
-
-export async function sincronizarTudoNoSheets(
-  accessToken: string,
-  refreshToken: string | undefined,
-  documentos: any[]
-) {
-  const sheets = await getSheetsClient(accessToken, refreshToken);
-  const sheetId = await ensureHeaders(accessToken, refreshToken);
-
-  // Limpa dados antigos (linha 2 em diante)
-  await sheets.spreadsheets.values.clear({
+  // Lê a linha atual primeiro
+  const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:${RANGE_END}9999`,
+    range: `${SHEET_NAME}!A${linha}:L${linha}`,
   });
+  const atual = res.data.values?.[0] ?? Array(12).fill("");
 
-  if (documentos.length === 0) return sheetId;
+  // Mescla com os novos valores
+  if (doc.nome !== undefined) atual[COLS.NOME] = doc.nome;
+  if (doc.titulo !== undefined) atual[COLS.DOCUMENTO] = doc.titulo;
+  if (doc.linkEditavel !== undefined) atual[COLS.LINK_EDITAVEL] = doc.linkEditavel;
+  if (doc.tipo !== undefined) atual[COLS.TIPO] = doc.tipo;
+  if (doc.localizacao !== undefined) atual[COLS.LOCALIZACAO] = doc.localizacao;
+  if (doc.unidade !== undefined) atual[COLS.UNIDADE] = doc.unidade;
+  if (doc.area !== undefined) atual[COLS.AREA] = doc.area;
+  if (doc.status !== undefined) atual[COLS.STATUS] = doc.status;
+  if (doc.observacao !== undefined) atual[COLS.OBS] = doc.observacao;
+  if (doc.dataPadronizacao !== undefined) atual[COLS.DATA_PADRONIZACAO] = doc.dataPadronizacao;
+  if (doc.dataRevisao !== undefined) atual[COLS.DATA_REVISAO] = doc.dataRevisao;
 
-  const rows = documentos.map(docToRow);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2`,
+    range: `${SHEET_NAME}!A${linha}:L${linha}`,
     valueInputOption: "USER_ENTERED",
-    requestBody: { values: rows },
+    requestBody: { values: [atual] },
   });
-
-  return sheetId;
 }
 
-export async function aplicarFormatacaoStatus(
-  accessToken: string,
-  refreshToken: string | undefined,
-  sheetId: number = 0
-) {
-  const sheets = await getSheetsClient(accessToken, refreshToken);
+// Garante cabeçalho
+export async function ensureHeaders(accessToken: string, refreshToken?: string) {
+  const sheets = getSheetsClient(accessToken, refreshToken);
 
-  // Coluna I (índice 8) = STATUS
-  const statusFormats = [
-    { valor: "VENCIDO",    r: 0.99, g: 0.80, b: 0.80 },
-    { valor: "VENCENDO",   r: 1.00, g: 0.95, b: 0.80 },
-    { valor: "VIGENTE",    r: 0.85, g: 0.97, b: 0.87 },
-    { valor: "EM_REVISAO", r: 0.85, g: 0.91, b: 0.99 },
-    { valor: "OBSOLETO",   r: 0.93, g: 0.93, b: 0.93 },
-  ];
-
-  const requests = statusFormats.map(sf => ({
-    addConditionalFormatRule: {
-      rule: {
-        ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 8, endColumnIndex: 9 }],
-        booleanRule: {
-          condition: { type: "TEXT_EQ", values: [{ userEnteredValue: sf.valor }] },
-          format: { backgroundColor: { red: sf.r, green: sf.g, blue: sf.b } },
-        },
-      },
-      index: 0,
-    },
-  }));
-
-  await sheets.spreadsheets.batchUpdate({
+  const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    requestBody: { requests },
-  }).catch(e => console.error("Formatação condicional:", e));
+    range: `${SHEET_NAME}!A1:L1`,
+  }).catch(() => null);
+
+  if (res?.data?.values?.[0]?.[0] === "NOME") return;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SHEET_NAME}!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [HEADERS] },
+  });
 }
