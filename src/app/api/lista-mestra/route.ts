@@ -9,10 +9,7 @@ export async function GET(req: NextRequest) {
 
   const accessToken = (session as any).accessToken;
   const refreshToken = (session as any).refreshToken;
-
-  if (!accessToken) {
-    return NextResponse.json({ error: "Token Google não encontrado. Faça logout e login novamente." }, { status: 401 });
-  }
+  if (!accessToken) return NextResponse.json({ error: "Token Google não encontrado. Faça logout e login novamente." }, { status: 401 });
 
   try {
     const { searchParams } = new URL(req.url);
@@ -23,23 +20,6 @@ export async function GET(req: NextRequest) {
 
     let docs = await lerPlanilha(accessToken, refreshToken);
 
-    // Calcula status automático pela data de revisão
-    const hoje = new Date();
-    docs = docs.map(d => {
-      if (d.dataRevisao) {
-        const partes = d.dataRevisao.split("/");
-        if (partes.length === 3) {
-          const dataRev = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
-          const dias = Math.ceil((dataRev.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-          if (dias < 0) d.status = "VENCIDO";
-          else if (dias <= 30) d.status = "VENCENDO";
-          else d.status = "VIGENTE";
-        }
-      }
-      return d;
-    });
-
-    // Filtros
     if (search) docs = docs.filter(d =>
       d.titulo.toLowerCase().includes(search.toLowerCase()) ||
       d.codigo.toLowerCase().includes(search.toLowerCase()) ||
@@ -65,17 +45,15 @@ export async function POST(req: NextRequest) {
   if (!accessToken) return NextResponse.json({ error: "Token Google não encontrado" }, { status: 401 });
 
   const body = await req.json();
-  const { tipoSigla, areaSigla, ...resto } = body;
+  const { tipoSigla, areaSigla, itensONASelecionados, ...resto } = body;
 
   try {
-    // Gera código automático
     const codigo = await gerarCodigo(accessToken, refreshToken, tipoSigla, areaSigla);
-
     await adicionarNaPlanilha(accessToken, refreshToken, {
       ...resto,
       codigo,
+      itensONA: (itensONASelecionados ?? []).join(", "),
     });
-
     return NextResponse.json({ success: true, codigo });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
