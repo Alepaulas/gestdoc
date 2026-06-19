@@ -35,8 +35,8 @@ async function main() {
   // Unidades para teste
   const sede = await prisma.unidade.create({ data:{ nome:"Sede ISGH", sigla:"SEDE" } });
   const hgwa = await prisma.unidade.create({ data:{ nome:"Hospital Geral Dr. Waldemar Alcântara", sigla:"HGWA" } });
-  const hlv  = await prisma.unidade.create({ data:{ nome:"Hospital Leonardo Da Vinci", sigla:"HLV" } });
-  const hrvj = await prisma.unidade.create({ data:{ nome:"Hospital Regional de Várzea Alegre", sigla:"HRVJ" } });
+  const hlv  = await prisma.unidade.create({ data:{ nome:"Hospital Estadual Leonardo Da Vinci", sigla:"HELV" } });
+  const hrvj = await prisma.unidade.create({ data:{ nome:"Hospital Regional do Vale do Jaguaribe", sigla:"HRVJ" } });
   console.log(`✅ 4 unidades`);
 
   // Setores e áreas da SEDE
