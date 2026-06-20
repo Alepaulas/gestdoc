@@ -11,7 +11,7 @@ const nav = [
   { href:"/ona",        label:"Mapa ONA",     icon:Map },
   { href:"/auditoria",   label:"Auditoria",     icon:ClipboardList },
   { href:"/formatador", label:"Formatador",   icon:WandSparkles },
-  { href:"/comparador", label:"Comparador",   icon:GitCompare },
+  { href:"/revisor", label:"Revisor",   icon:GitCompare },
   { href:"/configuracoes", label:"Configurações", icon:Settings },
 ];
 

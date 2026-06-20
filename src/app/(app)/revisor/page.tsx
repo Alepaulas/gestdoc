@@ -56,7 +56,7 @@ function FileSlot({
   );
 }
 
-export default function ComparadorPage() {
+export default function RevisorPage() {
   const [fileA, setFileA] = useState<File | null>(null);
   const [fileB, setFileB] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,7 +76,7 @@ export default function ComparadorPage() {
       const fd = new FormData();
       fd.append("fileA", fileA);
       fd.append("fileB", fileB);
-      const res = await fetch("/api/comparador", { method: "POST", body: fd });
+      const res = await fetch("/api/revisor", { method: "POST", body: fd });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Erro ao comparar.");
       setOps(j.ops);
@@ -100,7 +100,7 @@ export default function ComparadorPage() {
           <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
             <GitCompare className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Comparador de Versões</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Revisor de Documentos</h1>
         </div>
         <p className="text-slate-500 text-sm ml-12">
           Compare duas versões de um documento e veja as diferenças na hora — nada é salvo.
