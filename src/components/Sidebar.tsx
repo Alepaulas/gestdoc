@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Home, FileText, Map, ClipboardList, Settings, LogOut, ChevronRight, WandSparkles } from "lucide-react";
+import { Home, FileText, Map, ClipboardList, Settings, LogOut, ChevronRight, WandSparkles, GitCompare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -11,6 +11,7 @@ const nav = [
   { href:"/ona",        label:"Mapa ONA",     icon:Map },
   { href:"/auditoria",   label:"Auditoria",     icon:ClipboardList },
   { href:"/formatador", label:"Formatador",   icon:WandSparkles },
+  { href:"/comparador", label:"Comparador",   icon:GitCompare },
   { href:"/configuracoes", label:"Configurações", icon:Settings },
 ];
 
