@@ -7,16 +7,27 @@ export default function Configuracoes() {
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
   const [users, setUsers] = useState<any[]>([]);
+  const [unidades, setUnidades] = useState<any[]>([]);
   const [alertResult, setAlertResult] = useState<any>(null);
   const [alertLoading, setAlertLoading] = useState(false);
   const [sheetsResult, setSheetsResult] = useState<any>(null);
   const [sheetsLoading, setSheetsLoading] = useState(false);
 
-  useEffect(() => { if (isAdmin) fetch("/api/users").then(r=>r.json()).then(setUsers); }, [isAdmin]);
+  useEffect(() => {
+    if (isAdmin) {
+      fetch("/api/users").then(r=>r.json()).then(setUsers);
+      fetch("/api/unidades").then(r=>r.json()).then(setUnidades).catch(()=>setUnidades([]));
+    }
+  }, [isAdmin]);
 
   async function changeRole(userId: string, role: string) {
     await fetch("/api/users", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({userId,role}) });
     setUsers(u => u.map(x => x.id===userId ? {...x,role} : x));
+  }
+
+  async function changeFluxo(userId: string, field: "unidadeId" | "papelFluxo", value: string) {
+    await fetch("/api/users", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({userId,[field]:value}) });
+    setUsers(u => u.map(x => x.id===userId ? {...x,[field]:value || null} : x));
   }
 
   async function runAlertas() {
@@ -140,6 +151,26 @@ export default function Configuracoes() {
                     <p className="text-sm font-semibold text-slate-900 truncate">{u.name}</p>
                     <p className="text-xs text-slate-400 truncate">{u.email}</p>
                   </div>
+                  <select
+                    value={u.unidadeId ?? ""}
+                    onChange={e => changeFluxo(u.id, "unidadeId", e.target.value)}
+                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sem unidade</option>
+                    {unidades.map((un:any) => (
+                      <option key={un.id} value={un.id}>{un.sigla}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={u.papelFluxo ?? ""}
+                    onChange={e => changeFluxo(u.id, "papelFluxo", e.target.value)}
+                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sem papel no fluxo</option>
+                    <option value="UNIDADE">Unidade</option>
+                    <option value="REFERENCIA_TECNICA">Referência Técnica</option>
+                    <option value="GESTDOC">GestDoc</option>
+                  </select>
                   <select
                     value={u.role}
                     onChange={e => changeRole(u.id, e.target.value)}

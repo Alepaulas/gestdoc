@@ -9,17 +9,23 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String?  @unique
-  image     String?
-  role      String   @default("VIEWER")
-  accounts   Account[]
-  sessions   Session[]
-  documentos Documento[]
-  auditLogs AuditLog[]
+  id            String   @id @default(cuid())
+  name          String?
+  email         String?  @unique
+  image         String?
+  role          String   @default("VIEWER")
+  unidadeId     String?
+  papelFluxo    String?  // UNIDADE | REFERENCIA_TECNICA | GESTDOC
+  unidade       Unidade? @relation(fields: [unidadeId], references: [id])
+  accounts      Account[]
+  sessions      Session[]
+  documentos    Documento[]
+  auditLogs     AuditLog[]
+  solicitacoesAbertas Solicitacao[] @relation("SolicitacaoSolicitante")
+  etapas        SolicitacaoEtapa[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@index([unidadeId])
 }
 
 model Account {
@@ -54,6 +60,8 @@ model Unidade {
   nome      String
   sigla     String   @unique
   setores   Setor[]
+  usuarios  User[]
+  solicitacoes Solicitacao[]
   createdAt DateTime @default(now())
 }
 
@@ -161,4 +169,70 @@ model AuditLog {
   createdAt   DateTime   @default(now())
   @@index([documentoId])
   @@index([userId])
+}
+
+// ───────────────────────────────────────────────
+// Fluxo de Solicitação de Padronização
+// ───────────────────────────────────────────────
+
+// Etapas possíveis do fluxo (campo `etapaAtual` em Solicitacao):
+//   ABERTA                  -> aguardando triagem da Referência Técnica
+//   EM_ANALISE_RT           -> com a Referência Técnica
+//   DEVOLVIDA_UNIDADE       -> Referência Técnica não validou, voltou pra Unidade
+//   EM_PADRONIZACAO         -> com o GestDoc, padronizando
+//   AGUARDANDO_VALIDACAO_UNIDADE -> GestDoc enviou pra Unidade validar o padronizado
+//   PUBLICADA               -> GestDoc publicou (etapa final)
+//   CANCELADA               -> encerrada sem publicação
+
+model Solicitacao {
+  id              String   @id @default(cuid())
+  codigo          String   @unique // ex: SOL-2026-0001
+  titulo          String
+  descricao       String   @db.Text
+  etapaAtual      String   @default("ABERTA")
+  unidadeId       String
+  solicitanteId   String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  unidade         Unidade  @relation(fields: [unidadeId], references: [id])
+  solicitante     User     @relation("SolicitacaoSolicitante", fields: [solicitanteId], references: [id])
+  anexos          SolicitacaoAnexo[]
+  etapas          SolicitacaoEtapa[]
+
+  @@index([unidadeId])
+  @@index([solicitanteId])
+  @@index([etapaAtual])
+}
+
+// Anexos enviados em qualquer momento do fluxo (abertura, reenvio, padronização, etc.)
+model SolicitacaoAnexo {
+  id             String      @id @default(cuid())
+  solicitacaoId  String
+  nome           String
+  url            String      @db.Text // link Drive (ou outro storage externo) — nada de binário no banco
+  enviadoPorId   String
+  etapa          String      // em qual etapa do fluxo foi anexado
+  createdAt      DateTime    @default(now())
+
+  solicitacao    Solicitacao @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+
+  @@index([solicitacaoId])
+}
+
+// Histórico de cada passo do fluxo — dá o "com quem está" e "tempo decorrido"
+model SolicitacaoEtapa {
+  id             String      @id @default(cuid())
+  solicitacaoId  String
+  etapa          String      // etapa que foi assumida nesse passo
+  acao           String      // ABERTURA | VALIDOU | NAO_VALIDOU | REENVIO | PADRONIZOU | ENVIOU_VALIDACAO | VALIDOU_UNIDADE | PUBLICOU | CANCELOU
+  comentario     String?     @db.Text
+  responsavelId  String
+  createdAt      DateTime    @default(now())
+
+  solicitacao    Solicitacao @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  responsavel    User        @relation(fields: [responsavelId], references: [id])
+
+  @@index([solicitacaoId])
+  @@index([responsavelId])
 }

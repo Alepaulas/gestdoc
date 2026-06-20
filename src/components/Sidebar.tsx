@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Home, FileText, Map, ClipboardList, Settings, LogOut, ChevronRight, WandSparkles, GitCompare } from "lucide-react";
+import { Home, FileText, Map, ClipboardList, Settings, LogOut, ChevronRight, WandSparkles, GitCompare, ClipboardPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { href:"/dashboard", label:"Home",          icon:Home },
   { href:"/documentos", label:"Documentos",   icon:FileText },
+  { href:"/solicitacoes", label:"Solicitações", icon:ClipboardPlus },
   { href:"/ona",        label:"Mapa ONA",     icon:Map },
   { href:"/auditoria",   label:"Auditoria",     icon:ClipboardList },
   { href:"/formatador", label:"Formatador",   icon:WandSparkles },
