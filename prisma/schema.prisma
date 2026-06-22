@@ -192,6 +192,15 @@ model Solicitacao {
   etapaAtual      String   @default("ABERTA")
   unidadeId       String
   solicitanteId   String
+  // Campos gerados quando RT valida
+  tipoDocumento   String?  // ex: POP
+  areaDocumento   String?  // ex: AGT
+  codigoGerado    String?  // ex: POP.AGT.003
+  elaborador      String?
+  aprovador       String?
+  versao          String?  @default("00")
+  criticidade     String?
+  linkPublicado   String?  @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
