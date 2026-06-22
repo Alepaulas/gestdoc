@@ -58,6 +58,7 @@ export default function NovoDocumento() {
   const [loading, setLoading] = useState(false);
   const [codigoPreview, setCodigoPreview] = useState("");
   const [naoAplicaONA, setNaoAplicaONA] = useState(false);
+  const [codigoLoading, setCodigoLoading] = useState(false);
   const [form, setForm] = useState({
     nome: "", titulo: "", linkEditavel: "",
     tipoSigla: "", areaSigla: "",
@@ -65,12 +66,25 @@ export default function NovoDocumento() {
     status: "VIGENTE", observacao: "",
     dataPadronizacao: new Date().toLocaleDateString("pt-BR"),
     dataRevisao: "",
+    versao: "00",
+    elaborador: "",
+    aprovador: "",
+    criticidade: "",
     itensONASelecionados: [] as string[],
   });
 
-  function updatePreview(tipoSigla: string, areaSigla: string) {
-    if (tipoSigla && areaSigla) setCodigoPreview(`${tipoSigla}.${areaSigla}.001`);
-    else setCodigoPreview("");
+  async function updatePreview(tipoSigla: string, areaSigla: string) {
+    if (!tipoSigla || !areaSigla) { setCodigoPreview(""); return; }
+    setCodigoLoading(true);
+    try {
+      const res = await fetch(`/api/codigo-documento?tipo=${tipoSigla}&area=${areaSigla}`);
+      const j = await res.json();
+      setCodigoPreview(j.codigo ?? `${tipoSigla}.${areaSigla}.001`);
+    } catch {
+      setCodigoPreview(`${tipoSigla}.${areaSigla}.001`);
+    } finally {
+      setCodigoLoading(false);
+    }
   }
 
   function toggleNaoAplica(checked: boolean) {
@@ -95,6 +109,7 @@ export default function NovoDocumento() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        codigo: codigoPreview,
         area: AREAS.find(a => a.sigla === form.areaSigla)?.nome ?? form.areaSigla,
         tipo: `${form.tipoSigla} — ${TIPOS.find(t => t.sigla === form.tipoSigla)?.nome ?? ""}`,
         itensONASelecionados: form.itensONASelecionados,
@@ -125,8 +140,10 @@ export default function NovoDocumento() {
           {codigoPreview && (
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center gap-3">
               <span className="text-xs text-blue-600 font-medium">Código gerado automaticamente:</span>
-              <span className="font-mono font-bold text-blue-800 text-sm">{codigoPreview}</span>
-              <span className="text-xs text-blue-400">(número final ajustado ao salvar)</span>
+              {codigoLoading
+                ? <span className="text-xs text-blue-400 animate-pulse">Consultando Lista Mestra...</span>
+                : <span className="font-mono font-bold text-blue-800 text-sm">{codigoPreview}</span>
+              }
             </div>
           )}
 
@@ -208,6 +225,53 @@ export default function NovoDocumento() {
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">Observação</label>
             <textarea value={form.observacao} onChange={e=>setForm(f=>({...f,observacao:e.target.value}))}
               rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"/>
+          </div>
+        </div>
+
+        {/* Autoria e controle */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+          <h2 className="font-bold text-slate-900 text-sm">Autoria e controle</h2>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Versão</label>
+              <input value={form.versao} onChange={e=>setForm(f=>({...f,versao:e.target.value}))}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="00"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Criticidade</label>
+              <select value={form.criticidade} onChange={e=>setForm(f=>({...f,criticidade:e.target.value}))}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Selecione...</option>
+                <option value="ALTA">Alta</option>
+                <option value="MEDIA">Média</option>
+                <option value="BAIXA">Baixa</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Status</label>
+              <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="VIGENTE">Vigente</option>
+                <option value="VENCENDO">Vencendo</option>
+                <option value="VENCIDO">Vencido</option>
+                <option value="OBSOLETO">Obsoleto</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Elaborador</label>
+              <input value={form.elaborador} onChange={e=>setForm(f=>({...f,elaborador:e.target.value}))}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Nome e cargo"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Aprovador</label>
+              <input value={form.aprovador} onChange={e=>setForm(f=>({...f,aprovador:e.target.value}))}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Nome e cargo"/>
+            </div>
           </div>
         </div>
 
