@@ -47,18 +47,35 @@ export const authOptions: NextAuthOptions = {
         const adminEmail = process.env.ADMIN_EMAIL ?? "";
         token.role = token.email === adminEmail ? "ADMIN" : "EDITOR";
       }
+      // Busca papelFluxo e unidadeId do banco a cada login (ou se ainda não estiver no token)
+      if (!token.papelFluxo && token.sub) {
+        try {
+          const { prisma } = await import("@/lib/db");
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub as string },
+            select: { papelFluxo: true, unidadeId: true, role: true },
+          });
+          if (dbUser) {
+            token.papelFluxo = dbUser.papelFluxo;
+            token.unidadeId  = dbUser.unidadeId;
+            if (dbUser.role) token.role = dbUser.role;
+          }
+        } catch {}
+      }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.sub ?? token.id;
-        (session.user as any).role = token.role ?? "EDITOR";
+        (session.user as any).id         = token.sub ?? token.id;
+        (session.user as any).role       = token.role ?? "EDITOR";
+        (session.user as any).papelFluxo = token.papelFluxo ?? null;
+        (session.user as any).unidadeId  = token.unidadeId  ?? null;
         session.user.email = token.email as string;
-        session.user.name = token.name as string;
+        session.user.name  = token.name  as string;
         session.user.image = token.picture as string;
       }
       // Expõe tokens Google na sessão (necessário para Sheets/Drive/Gmail)
-      (session as any).accessToken = token.accessToken;
+      (session as any).accessToken  = token.accessToken;
       (session as any).refreshToken = token.refreshToken;
       return session;
     },

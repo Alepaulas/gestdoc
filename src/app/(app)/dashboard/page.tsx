@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileText, CheckCircle, Clock, AlertTriangle, ChevronRight, Calendar } from "lucide-react";
+import { FileText, CheckCircle, Clock, AlertTriangle, ChevronRight, Calendar, ShieldX } from "lucide-react";
 
 const ST: Record<string,{label:string;bg:string;text:string;dot:string}> = {
   VIGENTE:  {label:"Vigente",  bg:"#f0fdf4",text:"#15803d",dot:"#16a34a"},
@@ -12,6 +13,8 @@ const ST: Record<string,{label:string;bg:string;text:string;dot:string}> = {
 
 export default function Home() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const acessoNegado = searchParams.get("acesso") === "negado";
   const [docs, setDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,6 +54,12 @@ export default function Home() {
 
   return (
     <div>
+      {acessoNegado && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3 text-sm text-red-700">
+          <ShieldX className="w-5 h-5 flex-shrink-0 text-red-500" />
+          <span>Você não tem acesso a esse módulo. Contate o administrador do sistema.</span>
+        </div>
+      )}
       <div className="mb-7">
         <h1 className="text-xl font-bold text-slate-900">{saudacao}, {session?.user?.name?.split(" ")[0]}! 👋</h1>
         <p className="text-slate-500 text-sm mt-1">Painel de governança documental — ISGH</p>

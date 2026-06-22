@@ -170,6 +170,7 @@ export default function Configuracoes() {
                     <option value="UNIDADE">Unidade</option>
                     <option value="REFERENCIA_TECNICA">Referência Técnica</option>
                     <option value="GESTDOC">GestDoc</option>
+                    <option value="OPERACIONAL">Operacional</option>
                   </select>
                   <select
                     value={u.role}
