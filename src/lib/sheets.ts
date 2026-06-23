@@ -206,7 +206,12 @@ export async function adicionarNaPlanilha(
 ) {
   const sheets = getSheetsClient(accessToken, refreshToken);
 
-  const tipoSigla = (doc.codigo ?? "").split(".")[0] ?? "";
+  // Extrai sigla do tipo (ex: "FFO — Ficha e Formulário" → "FFO", ou "POP.AGT.001" → "POP")
+  const tipoRaw = doc.tipoDocumento ?? "";
+  const tipoSigla = tipoRaw.includes(" — ")
+    ? tipoRaw.split(" — ")[0].trim()
+    : (doc.codigo ?? "").split(".")[0];
+
   const proximaRevisao = doc.dataProximaRevisao
     || calcularProximaRevisao(doc.dataPadronizacao ?? "", tipoSigla);
   const dias = calcularDiasVencimento(proximaRevisao);

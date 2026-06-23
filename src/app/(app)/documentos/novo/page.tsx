@@ -113,15 +113,38 @@ export default function NovoDocumentoPage() {
     setLoading(true);
     try {
       const tipoNome = TIPOS_ORDENADOS.find(t => t.codigo === form.tipoDocumento)?.nome ?? form.tipoDocumento;
+      const setorNome = AREAS.find(a => a.sigla === form.areaSigla)?.nome ?? form.areaSigla;
+
+      const payload = {
+        // Identificação
+        tipoDocumento:        `${form.tipoDocumento} — ${tipoNome}`,
+        codigo:               codigoPreview,
+        titulo:               form.titulo,
+        unidade:              form.unidade,
+        setor:                setorNome,
+        // Demanda
+        statusDemanda:        form.statusDemanda,
+        statusDocumento:      form.statusDocumento,
+        vigencia:             form.vigencia,
+        dataSolicitacao:      form.dataSolicitacao,
+        linkEmail:            form.linkEmail,
+        // Validação
+        encaminhadoValidacao: form.encaminhadoValidacao,
+        dataValidacao:        form.dataValidacao,
+        prazoMaxPadronizacao: form.prazoMaxPadronizacao,
+        // Padronização
+        dataPadronizacao:     form.dataPadronizacao,
+        dataPublicacao:       form.dataPublicacao,
+        versao:               form.versao,
+        revisao:              form.revisao,
+        // Autoria
+        concluidaPor:         form.concluidaPor,
+      };
+
       const res = await fetch("/api/lista-mestra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          codigo: codigoPreview,
-          tipoDocumento: `${form.tipoDocumento} — ${tipoNome}`,
-          setor: AREAS.find(a => a.sigla === form.areaSigla)?.nome ?? form.areaSigla,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) router.push("/documentos/lista-mestra");
