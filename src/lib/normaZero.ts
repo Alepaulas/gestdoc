@@ -107,3 +107,38 @@ export const REGRAS_FORMATACAO: Record<TipoDocumento, RegraFormatacao> = {
 
 export const TIPOS_ORDENADOS = Object.values(REGRAS_FORMATACAO)
   .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+// Nível hierárquico conforme pirâmide da Norma Zero
+export const TIPO_NIVEL: Record<TipoDocumento, string> = {
+  POL: "Nível I", REG: "Nível I", REL: "Nível I",
+  DIZ: "Nível II", FTI: "Nível II", FFO: "Nível II",
+  FLU: "Nível II", ITA: "Nível II", MAN: "Nível II",
+  MAP: "Nível II", NTE: "Nível II", NOR: "Nível II",
+  PAC: "Nível III", PLA: "Nível II", PLC: "Nível II",
+  PSP: "Nível II", PRO: "Nível II", PCG: "Nível II",
+  PSG: "Nível II", POP: "Nível II", INT: "Nível III",
+  MOD: "Nível III",
+};
+
+// Prazo de vigência em anos por tipo (Norma Zero)
+export const TIPO_VIGENCIA_ANOS: Record<TipoDocumento, number> = {
+  DIZ: 2, FTI: 1, FFO: 2, FLU: 2, ITA: 2, INT: 2,
+  MAN: 2, MAP: 2, MOD: 2, NTE: 2, NOR: 2, PAC: 2,
+  PLA: 2, PLC: 2, PSP: 1, POL: 4, PRO: 2, PCG: 2,
+  PSG: 2, POP: 2, REG: 4, REL: 2,
+};
+
+export function calcularProximaRevisao(dataPadronizacao: string, tipo: TipoDocumento | string): string {
+  const anos = TIPO_VIGENCIA_ANOS[tipo as TipoDocumento] ?? 2;
+  const partes = dataPadronizacao.split("/");
+  if (partes.length !== 3) return "";
+  const base = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+  if (isNaN(base.getTime())) return "";
+  base.setFullYear(base.getFullYear() + anos);
+  return `${String(base.getDate()).padStart(2,"0")}/${String(base.getMonth()+1).padStart(2,"0")}/${base.getFullYear()}`;
+}
+
+export function calcularVigencia(tipo: TipoDocumento | string): string {
+  const anos = TIPO_VIGENCIA_ANOS[tipo as TipoDocumento] ?? 2;
+  return anos === 1 ? "1 ano" : `${anos} anos`;
+}

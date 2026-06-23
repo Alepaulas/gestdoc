@@ -7,32 +7,36 @@ const SHEET_NAME = "LISTA_MESTRE";
 const COLS = {
   ID:                       0,  // A
   TIPO_DOCUMENTO:           1,  // B
-  CODIGO:                   2,  // C
-  TITULO:                   3,  // D
-  UNIDADE:                  4,  // E
-  SETOR:                    5,  // F
-  STATUS_DEMANDA:           6,  // G
-  STATUS_DOCUMENTO:         7,  // H
-  VIGENCIA:                 8,  // I
-  DATA_SOLICITACAO:         9,  // J
-  LINK_EMAIL:               10, // K
-  ENCAMINHADO_VALIDACAO:    11, // L
-  DATA_VALIDACAO:           12, // M
-  PRAZO_MAX_PADRONIZACAO:   13, // N
-  DATA_PADRONIZACAO:        14, // O
-  CONFORMIDADE_PRAZO:       15, // P
-  DATA_PROXIMA_REVISAO:     16, // Q
-  VERSAO:                   17, // R
-  REVISAO:                  18, // S
-  DATA_PUBLICACAO:          19, // T
-  DIAS_VENCIMENTO:          20, // U
-  STATUS_VALIDADE:          21, // V
-  CONCLUIDA_POR:            22, // W
+  NIVEL:                    2,  // C
+  CODIGO:                   3,  // D
+  TITULO:                   4,  // E
+  UNIDADE:                  5,  // F
+  SETOR:                    6,  // G
+  STATUS_DEMANDA:           7,  // H
+  STATUS_DOCUMENTO:         8,  // I
+  VIGENCIA:                 9,  // J
+  DATA_SOLICITACAO:         10, // K
+  LINK_EMAIL:               11, // L
+  ENCAMINHADO_VALIDACAO:    12, // M
+  DATA_VALIDACAO:           13, // N
+  PRAZO_MAX_PADRONIZACAO:   14, // O
+  DATA_PADRONIZACAO:        15, // P
+  CONFORMIDADE_PRAZO:       16, // Q
+  DATA_PROXIMA_REVISAO:     17, // R
+  VERSAO:                   18, // S
+  REVISAO:                  19, // T
+  DATA_PUBLICACAO:          20, // U
+  DIAS_VENCIMENTO:          21, // V
+  STATUS_VALIDADE:          22, // W
+  CONCLUIDA_POR:            23, // X
+  ELABORADOR:               24, // Y
+  APROVADOR:                25, // Z
 };
 
 const HEADERS = [
   "ID",
   "TIPO DE DOCUMENTO",
+  "NÍVEL",
   "CÓDIGO",
   "TITULO DO DOCUMENTO",
   "UNIDADE",
@@ -54,6 +58,8 @@ const HEADERS = [
   "DIAS PARA VENCIMENTO",
   "STATUS DA VALIDADE",
   "CONCLUIDA POR:",
+  "ELABORADOR",
+  "APROVADOR",
 ];
 
 // Prazos de revisão por tipo (anos) — Norma Zero
@@ -154,7 +160,7 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
   const sheets = getSheetsClient(accessToken, refreshToken);
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:W9999`,
+    range: `${SHEET_NAME}!A2:Z9999`,
   });
   const rows = res.data.values ?? [];
 
@@ -166,37 +172,40 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
       const statusValidade = calcularStatusValidade(dias);
 
       return {
-        _linha: i + 2,
-        id:                    row[COLS.ID]                    ?? "",
-        tipoDocumento:         row[COLS.TIPO_DOCUMENTO]        ?? "",
-        codigo:                row[COLS.CODIGO]                ?? "",
-        titulo:                row[COLS.TITULO]                ?? "",
-        unidade:               row[COLS.UNIDADE]               ?? "",
-        setor:                 row[COLS.SETOR]                 ?? "",
-        statusDemanda:         row[COLS.STATUS_DEMANDA]        ?? "",
-        statusDocumento:       row[COLS.STATUS_DOCUMENTO]      ?? "",
-        vigencia:              row[COLS.VIGENCIA]              ?? "",
-        dataSolicitacao:       row[COLS.DATA_SOLICITACAO]      ?? "",
-        linkEmail:             row[COLS.LINK_EMAIL]            ?? "",
-        encaminhadoValidacao:  row[COLS.ENCAMINHADO_VALIDACAO] ?? "",
-        dataValidacao:         row[COLS.DATA_VALIDACAO]        ?? "",
-        prazoMaxPadronizacao:  row[COLS.PRAZO_MAX_PADRONIZACAO]?? "",
-        dataPadronizacao:      row[COLS.DATA_PADRONIZACAO]     ?? "",
-        conformidadePrazo:     calcularConformidadePrazo(
-                                 row[COLS.DATA_PADRONIZACAO] ?? "",
-                                 row[COLS.PRAZO_MAX_PADRONIZACAO] ?? ""
-                               ),
-        dataProximaRevisao:    proximaRevisao,
-        versao:                row[COLS.VERSAO]                ?? "",
-        revisao:               row[COLS.REVISAO]               ?? "",
-        dataPublicacao:        row[COLS.DATA_PUBLICACAO]       ?? "",
-        diasVencimento:        dias,
+        _linha:               i + 2,
+        id:                   row[COLS.ID]                    ?? "",
+        tipoDocumento:        row[COLS.TIPO_DOCUMENTO]        ?? "",
+        nivel:                row[COLS.NIVEL]                 ?? "",
+        codigo:               row[COLS.CODIGO]                ?? "",
+        titulo:               row[COLS.TITULO]                ?? "",
+        unidade:              row[COLS.UNIDADE]               ?? "",
+        setor:                row[COLS.SETOR]                 ?? "",
+        statusDemanda:        row[COLS.STATUS_DEMANDA]        ?? "",
+        statusDocumento:      row[COLS.STATUS_DOCUMENTO]      ?? "",
+        vigencia:             row[COLS.VIGENCIA]              ?? "",
+        dataSolicitacao:      row[COLS.DATA_SOLICITACAO]      ?? "",
+        linkEmail:            row[COLS.LINK_EMAIL]            ?? "",
+        encaminhadoValidacao: row[COLS.ENCAMINHADO_VALIDACAO] ?? "",
+        dataValidacao:        row[COLS.DATA_VALIDACAO]        ?? "",
+        prazoMaxPadronizacao: row[COLS.PRAZO_MAX_PADRONIZACAO]?? "",
+        dataPadronizacao:     row[COLS.DATA_PADRONIZACAO]     ?? "",
+        conformidadePrazo:    calcularConformidadePrazo(
+                                row[COLS.DATA_PADRONIZACAO]     ?? "",
+                                row[COLS.PRAZO_MAX_PADRONIZACAO]?? ""
+                              ),
+        dataProximaRevisao:   proximaRevisao,
+        versao:               row[COLS.VERSAO]                ?? "",
+        revisao:              row[COLS.REVISAO]               ?? "",
+        dataPublicacao:       row[COLS.DATA_PUBLICACAO]       ?? "",
+        diasVencimento:       dias,
         statusValidade,
-        concluidaPor:          row[COLS.CONCLUIDA_POR]         ?? "",
-        // Campos legacy para compatibilidade
-        status:                statusValidade,
-        dataRevisao:           proximaRevisao,
-        itensONA:              [],
+        concluidaPor:         row[COLS.CONCLUIDA_POR]         ?? "",
+        elaborador:           row[COLS.ELABORADOR]            ?? "",
+        aprovador:            row[COLS.APROVADOR]             ?? "",
+        // Legacy
+        status:               statusValidade,
+        dataRevisao:          proximaRevisao,
+        itensONA:             [],
       };
     });
 }
@@ -222,29 +231,32 @@ export async function adicionarNaPlanilha(
   const id = await gerarId(sheets);
 
   const row = [
-    id,                                    // A - ID
-    doc.tipoDocumento  ?? "",              // B - Tipo de Documento
-    doc.codigo         ?? "",              // C - Código
-    doc.titulo         ?? "",              // D - Título
-    doc.unidade        ?? "",              // E - Unidade
-    doc.setor          ?? "",              // F - Setor
-    doc.statusDemanda  ?? "Em andamento", // G - Status da Demanda
-    doc.statusDocumento ?? "",             // H - Status do Documento
-    doc.vigencia       ?? "",              // I - Vigência
-    doc.dataSolicitacao ?? "",             // J - Data da Solicitação
-    doc.linkEmail      ?? "",              // K - Link E-mail
-    doc.encaminhadoValidacao ?? "",        // L - Encaminhado para Validação
-    doc.dataValidacao  ?? "",              // M - Data da Validação
-    doc.prazoMaxPadronizacao ?? "",        // N - Prazo Máximo
-    doc.dataPadronizacao ?? "",            // O - Data Padronização/Revisão
-    conformidade,                          // P - Conformidade com o Prazo
-    proximaRevisao,                        // Q - Data Próxima Revisão
-    doc.versao         ?? "00",            // R - Versão
-    doc.revisao        ?? "00",            // S - Revisão
-    doc.dataPublicacao ?? new Date().toLocaleDateString("pt-BR"), // T - Data Publicação
-    dias !== null ? String(dias) : "",     // U - Dias para Vencimento
-    statusValidade,                        // V - Status da Validade
-    doc.concluidaPor   ?? "",              // W - Concluída por
+    id,                                     // A - ID
+    doc.tipoDocumento   ?? "",              // B - Tipo de Documento
+    doc.nivel           ?? "",              // C - Nível
+    doc.codigo          ?? "",              // D - Código
+    doc.titulo          ?? "",              // E - Título
+    doc.unidade         ?? "",              // F - Unidade
+    doc.setor           ?? "",              // G - Setor
+    doc.statusDemanda   ?? "Em andamento",  // H - Status da Demanda
+    doc.statusDocumento ?? "",              // I - Status do Documento
+    doc.vigencia        ?? "",              // J - Vigência
+    doc.dataSolicitacao ?? "",              // K - Data da Solicitação
+    doc.linkEmail       ?? "",              // L - Link E-mail
+    doc.encaminhadoValidacao ?? "",         // M - Encaminhado para Validação
+    doc.dataValidacao   ?? "",              // N - Data da Validação
+    doc.prazoMaxPadronizacao ?? "",         // O - Prazo Máximo
+    doc.dataPadronizacao ?? "",             // P - Data Padronização/Revisão
+    conformidade,                           // Q - Conformidade com o Prazo
+    proximaRevisao,                         // R - Data Próxima Revisão
+    doc.versao          ?? "00",            // S - Versão
+    doc.revisao         ?? "00",            // T - Revisão
+    doc.dataPublicacao  ?? "",              // U - Data Publicação
+    dias !== null ? String(dias) : "",      // V - Dias para Vencimento
+    statusValidade,                         // W - Status da Validade
+    doc.concluidaPor    ?? "",              // X - Concluída por
+    doc.elaborador      ?? "",              // Y - Elaborador
+    doc.aprovador       ?? "",              // Z - Aprovador
   ];
 
   await sheets.spreadsheets.values.append({
