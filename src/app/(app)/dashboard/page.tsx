@@ -170,8 +170,7 @@ export default function Home() {
               <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4">
                 <span className="text-2xl">📊</span>
               </div>
-              <p className="text-sm font-semibold text-slate-600 mb-1">Espaço reservado para o Power BI</p>
-              <p className="text-xs text-slate-400 max-w-xs">O dashboard gerencial será incorporado aqui. Cole o link de incorporação do Power BI quando estiver pronto.</p>
+              <p className="text-sm font-semibold text-slate-600 mb-1">A implementar</p>
             </div>
           </div>
         </>
