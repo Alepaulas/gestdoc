@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ArrowLeft, Loader2, Hash, Info } from "lucide-react";
+import { FileText, ArrowLeft, Loader2, Hash } from "lucide-react";
 import Link from "next/link";
 import { TIPOS_ORDENADOS, TIPO_NIVEL, TIPO_VIGENCIA_ANOS, calcularProximaRevisao, type TipoDocumento } from "@/lib/normaZero";
 
@@ -67,6 +67,13 @@ export default function NovoDocumentoPage() {
   const [loading, setLoading] = useState(false);
   const [codigoPreview, setCodigoPreview] = useState("");
   const [codigoLoading, setCodigoLoading] = useState(false);
+  const [unidades, setUnidades] = useState<{id:string;nome:string;sigla:string}[]>([]);
+
+  useEffect(() => {
+    fetch("/api/unidades").then(r=>r.json()).then(data => {
+      if (Array.isArray(data)) setUnidades(data);
+    }).catch(()=>{});
+  }, []);
 
   // Campos automáticos derivados do tipo
   const [tipoSigla, setTipoSigla] = useState<TipoDocumento | "">("");
@@ -212,7 +219,8 @@ export default function NovoDocumentoPage() {
           <Input label="Título do Documento" required value={form.titulo} onChange={set("titulo")}
             placeholder="Ex: POP de Higienização de Mãos"/>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Unidade" value={form.unidade} onChange={set("unidade")} placeholder="Ex: HGWA"/>
+            <Select label="Unidade" value={form.unidade} onChange={set("unidade")}
+              options={unidades.map(u => ({ value: u.sigla, label: `${u.sigla} — ${u.nome}` }))}/>
           </div>
         </Section>
 
