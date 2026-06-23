@@ -156,6 +156,24 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* Dashboard Power BI */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800">Dashboard Gerencial</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Relatórios e indicadores — Power BI</p>
+              </div>
+              <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full font-medium">Em breve</span>
+            </div>
+            <div className="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 flex flex-col items-center justify-center py-16 px-8 text-center">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4">
+                <span className="text-2xl">📊</span>
+              </div>
+              <p className="text-sm font-semibold text-slate-600 mb-1">Espaço reservado para o Power BI</p>
+              <p className="text-xs text-slate-400 max-w-xs">O dashboard gerencial será incorporado aqui. Cole o link de incorporação do Power BI quando estiver pronto.</p>
+            </div>
+          </div>
         </>
       )}
     </div>
