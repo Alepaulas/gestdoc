@@ -67,13 +67,21 @@ export default function NovoDocumentoPage() {
   const [loading, setLoading] = useState(false);
   const [codigoPreview, setCodigoPreview] = useState("");
   const [codigoLoading, setCodigoLoading] = useState(false);
+  const [usuarios, setUsuarios] = useState<{id:string;name:string|null;email:string|null}[]>([]);
+  const [elaboradoresSelecionados, setElaboradoresSelecionados] = useState<string[]>([]);
+  const [showElaboradores, setShowElaboradores] = useState(false);
   const [unidades, setUnidades] = useState<{id:string;nome:string;sigla:string}[]>([]);
 
   useEffect(() => {
-    fetch("/api/unidades").then(r=>r.json()).then(data => {
-      if (Array.isArray(data)) setUnidades(data);
-    }).catch(()=>{});
+    fetch("/api/unidades").then(r=>r.json()).then(d => { if (Array.isArray(d)) setUnidades(d); }).catch(()=>{});
+    fetch("/api/users").then(r=>r.json()).then(d => { if (Array.isArray(d)) setUsuarios(d); }).catch(()=>{});
   }, []);
+
+  function toggleElaborador(nome: string) {
+    setElaboradoresSelecionados(prev =>
+      prev.includes(nome) ? prev.filter(n => n !== nome) : [...prev, nome]
+    );
+  }
 
   // Campos automáticos derivados do tipo
   const [tipoSigla, setTipoSigla] = useState<TipoDocumento | "">("");
@@ -151,7 +159,7 @@ export default function NovoDocumentoPage() {
         dataPublicacao:       form.dataPublicacao,
         versao:               form.versao,
         revisao:              form.revisao,
-        elaborador:           form.elaborador,
+        elaborador:           elaboradoresSelecionados.join(", "),
         aprovador:            form.aprovador,
         concluidaPor:         form.concluidaPor,
       };
@@ -271,8 +279,45 @@ export default function NovoDocumentoPage() {
         {/* Autoria */}
         <Section title="Autoria e Responsabilidade">
           <div>
-            <Input label="Elaborador(es)" value={form.elaborador} onChange={set("elaborador")}
-              placeholder="Ex: Rozane Silva — Enfermeira, Pedro Costa — Farmacêutico, Natasha Lima — Qualidade"/>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Elaborador(es)</label>
+            <div className="relative">
+              <button type="button" onClick={() => setShowElaboradores(v => !v)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-left bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 flex items-center justify-between">
+                <span className={elaboradoresSelecionados.length ? "text-slate-800" : "text-slate-400"}>
+                  {elaboradoresSelecionados.length
+                    ? elaboradoresSelecionados.join(", ")
+                    : "Selecione os elaboradores..."}
+                </span>
+                <span className="text-slate-400 text-xs">{showElaboradores ? "▲" : "▼"}</span>
+              </button>
+              {showElaboradores && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                  {usuarios.length === 0
+                    ? <p className="px-4 py-3 text-xs text-slate-400">Nenhum usuário cadastrado</p>
+                    : usuarios.map(u => {
+                        const nome = u.name ?? u.email ?? "";
+                        const selecionado = elaboradoresSelecionados.includes(nome);
+                        return (
+                          <button key={u.id} type="button"
+                            onClick={() => toggleElaborador(nome)}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-slate-50 transition-colors ${selecionado ? "bg-blue-50" : ""}`}>
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${selecionado ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                              {selecionado && <span className="text-white text-xs">✓</span>}
+                            </div>
+                            <span className={selecionado ? "text-blue-700 font-medium" : "text-slate-700"}>{nome}</span>
+                          </button>
+                        );
+                      })
+                  }
+                  <div className="border-t border-slate-100 px-4 py-2">
+                    <button type="button" onClick={() => setShowElaboradores(false)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                      Confirmar seleção
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Aprovador" value={form.aprovador} onChange={set("aprovador")}
