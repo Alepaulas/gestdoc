@@ -1,12 +1,11 @@
 // Controle de acesso por módulo — baseado no papelFluxo do usuário.
 // Para adicionar um novo módulo: inclua em NAV_ITEMS e em PAPEL_MODULOS.
 
-import { Home, FileText, Map, ClipboardList, Settings, WandSparkles, GitCompare, ClipboardPlus, type LucideIcon } from "lucide-react";
+import { Home, FileText, Map, ClipboardList, Settings, WandSparkles, GitCompare, type LucideIcon } from "lucide-react";
 
 export type Modulo =
   | "dashboard"
   | "documentos"
-  | "solicitacoes"
   | "ona"
   | "auditoria"
   | "formatador"
@@ -21,32 +20,30 @@ export type PapelFluxo =
   | "ADMIN";
 
 export const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; modulo: Modulo }[] = [
-  { href: "/dashboard",    label: "Home",          icon: Home,          modulo: "dashboard"      },
-  { href: "/documentos",   label: "Documentos",    icon: FileText,      modulo: "documentos"     },
-  { href: "/solicitacoes", label: "Solicitações",  icon: ClipboardPlus, modulo: "solicitacoes"   },
-  { href: "/ona",          label: "Mapa ONA",      icon: Map,           modulo: "ona"            },
-  { href: "/auditoria",    label: "Auditoria",     icon: ClipboardList, modulo: "auditoria"      },
-  { href: "/formatador",   label: "Formatador",    icon: WandSparkles,  modulo: "formatador"     },
-  { href: "/revisor",      label: "Revisor",       icon: GitCompare,    modulo: "revisor"        },
-  { href: "/configuracoes",label: "Configurações", icon: Settings,      modulo: "configuracoes"  },
+  { href: "/dashboard",     label: "Home",          icon: Home,          modulo: "dashboard"    },
+  { href: "/documentos",    label: "Documentos",    icon: FileText,      modulo: "documentos"   },
+  { href: "/ona",           label: "Mapa ONA",      icon: Map,           modulo: "ona"          },
+  { href: "/auditoria",     label: "Auditoria",     icon: ClipboardList, modulo: "auditoria"    },
+  { href: "/formatador",    label: "Formatador",    icon: WandSparkles,  modulo: "formatador"   },
+  { href: "/revisor",       label: "Revisor",       icon: GitCompare,    modulo: "revisor"      },
+  { href: "/configuracoes", label: "Configurações", icon: Settings,      modulo: "configuracoes"},
 ];
 
-// Mapeamento papel → módulos permitidos
 export const PAPEL_MODULOS: Record<PapelFluxo, Modulo[]> = {
   UNIDADE: [
-    "dashboard", "documentos", "solicitacoes",
+    "dashboard", "documentos",
   ],
   REFERENCIA_TECNICA: [
-    "dashboard", "documentos", "solicitacoes",
+    "dashboard", "documentos",
   ],
   GESTDOC: [
-    "dashboard", "documentos", "solicitacoes", "formatador", "revisor",
+    "dashboard", "documentos", "formatador", "revisor",
   ],
   OPERACIONAL: [
     "dashboard", "formatador",
   ],
   ADMIN: [
-    "dashboard", "documentos", "solicitacoes", "ona", "auditoria",
+    "dashboard", "documentos", "ona", "auditoria",
     "formatador", "revisor", "configuracoes",
   ],
 };
