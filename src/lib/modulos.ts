@@ -1,11 +1,12 @@
 // Controle de acesso por módulo — baseado no papelFluxo do usuário.
 // Para adicionar um novo módulo: inclua em NAV_ITEMS e em PAPEL_MODULOS.
 
-import { Home, FileText, Map, ClipboardList, Settings, WandSparkles, GitCompare, type LucideIcon } from "lucide-react";
+import { Home, FileText, Map, ClipboardList, Settings, WandSparkles, GitCompare, Package, type LucideIcon } from "lucide-react";
 
 export type Modulo =
   | "dashboard"
   | "documentos"
+  | "inventario"
   | "ona"
   | "auditoria"
   | "formatador"
@@ -22,6 +23,7 @@ export type PapelFluxo =
 export const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; modulo: Modulo }[] = [
   { href: "/dashboard",     label: "Home",          icon: Home,          modulo: "dashboard"    },
   { href: "/documentos",    label: "Documentos",    icon: FileText,      modulo: "documentos"   },
+  { href: "/inventario",    label: "Inventário",    icon: Package,       modulo: "inventario"   },
   { href: "/ona",           label: "Mapa ONA",      icon: Map,           modulo: "ona"          },
   { href: "/auditoria",     label: "Auditoria",     icon: ClipboardList, modulo: "auditoria"    },
   { href: "/formatador",    label: "Formatador",    icon: WandSparkles,  modulo: "formatador"   },
@@ -31,19 +33,19 @@ export const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; modulo:
 
 export const PAPEL_MODULOS: Record<PapelFluxo, Modulo[]> = {
   UNIDADE: [
-    "dashboard", "documentos",
+    "dashboard", "inventario",
   ],
   REFERENCIA_TECNICA: [
-    "dashboard", "documentos",
+    "dashboard", "documentos", "inventario",
   ],
   GESTDOC: [
-    "dashboard", "documentos", "formatador", "revisor",
+    "dashboard", "documentos", "inventario", "formatador", "revisor",
   ],
   OPERACIONAL: [
-    "dashboard", "formatador",
+    "dashboard", "formatador", "inventario",
   ],
   ADMIN: [
-    "dashboard", "documentos", "ona", "auditoria",
+    "dashboard", "documentos", "inventario", "ona", "auditoria",
     "formatador", "revisor", "configuracoes",
   ],
 };
