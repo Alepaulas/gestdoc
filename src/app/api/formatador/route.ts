@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import JSZip from "jszip";
 import { REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const WPC_NS  = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -117,6 +118,14 @@ export async function POST(req: NextRequest) {
     const outputBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     const regra = REGRAS_FORMATACAO[tipo];
     const outName = file.name.replace(/(\.\w+)$/, `_${tipo}_formatado$1`);
+
+    // Registra auditoria
+    const userId = (session.user as any).id as string;
+    await registrarAuditoria({
+      userId,
+      acao: "FORMATADOR_USO",
+      descricao: `Formatou documento "${file.name}" como ${tipo} (${regra.nome})`,
+    });
 
     return new NextResponse(outputBuffer, {
       headers: {

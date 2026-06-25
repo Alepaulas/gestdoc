@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import JSZip from "jszip";
 import { diffWords, computeStats } from "@/lib/diffWords";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
@@ -73,7 +74,14 @@ export async function POST(req: NextRequest) {
     const ops = diffWords(textA, textB);
     const stats = computeStats(ops);
 
-    // Nada é gravado — resposta retorna direto pro navegador
+    // Registra auditoria
+    const userId = (session.user as any).id as string;
+    await registrarAuditoria({
+      userId,
+      acao: "REVISOR_USO",
+      descricao: `Comparou "${fileA.name}" vs "${fileB.name}" — ${stats.added} palavras adicionadas, ${stats.removed} removidas`,
+    });
+
     return NextResponse.json({ ops, stats });
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Erro ao comparar documentos." }, { status: 400 });

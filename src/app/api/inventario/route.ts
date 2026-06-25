@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { lerPlanilha } from "@/lib/sheets";
 import { prisma } from "@/lib/db";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -62,6 +63,13 @@ export async function GET(req: NextRequest) {
     }
 
     if (status) docs = docs.filter(d => d.statusValidade === status);
+
+    // Registra acesso ao inventário
+    await registrarAuditoria({
+      userId,
+      acao: "INVENTARIO_ACESSO",
+      descricao: `Acessou inventário${unidadeFiltro ? ` da unidade ${unidadeFiltro}` : ""}`,
+    });
 
     return NextResponse.json({ docs, total: docs.length, isAdmin, unidadeFiltro });
   } catch (e: any) {

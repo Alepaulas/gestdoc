@@ -31,35 +31,24 @@ const COLS = {
   CONCLUIDA_POR:            23, // X
   ELABORADOR:               24, // Y
   APROVADOR:                25, // Z
+  CADASTRADO_EM:            26, // AA
+  CADASTRADO_POR:           27, // AB
+  ATUALIZADO_EM:            28, // AC
+  ATUALIZADO_POR:           29, // AD
 };
 
 const HEADERS = [
-  "ID",
-  "TIPO DE DOCUMENTO",
-  "NÍVEL",
-  "CÓDIGO",
-  "TITULO DO DOCUMENTO",
-  "UNIDADE",
-  "SETOR",
-  "STATUS DA DEMANDA",
-  "STATUS DO DOCUMENTO",
-  "VIGÊNCIA",
-  "DATA DA SOLICITAÇÃO (E-MAIL/FLUIG)",
-  "LINK E-MAIL",
-  "ENCAMINHADO PARA VALIDAÇÃO",
-  "DATA DA VALIDAÇÃO",
-  "PRAZO MÁXIMO PARA PADRONIZAÇÃO",
-  "DATA DA PADRONIZAÇÃO/REVISÃO",
-  "CONFORMIDADE COM O PRAZO",
-  "DATA DA PRÓXIMA REVISÃO",
-  "VERSÃO",
-  "REVISÃO",
-  "DATA DA PUBLICAÇÃO",
-  "DIAS PARA VENCIMENTO",
-  "STATUS DA VALIDADE",
-  "CONCLUIDA POR:",
-  "ELABORADOR",
-  "APROVADOR",
+  "ID", "TIPO DE DOCUMENTO", "NÍVEL", "CÓDIGO", "TITULO DO DOCUMENTO",
+  "UNIDADE", "SETOR", "STATUS DA DEMANDA", "STATUS DO DOCUMENTO", "VIGÊNCIA",
+  "DATA DA SOLICITAÇÃO (E-MAIL/FLUIG)", "LINK E-MAIL",
+  "ENCAMINHADO PARA VALIDAÇÃO", "DATA DA VALIDAÇÃO",
+  "PRAZO MÁXIMO PARA PADRONIZAÇÃO", "DATA DA PADRONIZAÇÃO/REVISÃO",
+  "CONFORMIDADE COM O PRAZO", "DATA DA PRÓXIMA REVISÃO",
+  "VERSÃO", "REVISÃO", "DATA DA PUBLICAÇÃO",
+  "DIAS PARA VENCIMENTO", "STATUS DA VALIDADE", "CONCLUIDA POR:",
+  "ELABORADOR", "APROVADOR",
+  "CADASTRADO EM", "CADASTRADO POR",
+  "ATUALIZADO EM", "ATUALIZADO POR",
 ];
 
 // Prazos de revisão por tipo (anos) — Norma Zero
@@ -160,7 +149,7 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
   const sheets = getSheetsClient(accessToken, refreshToken);
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:Z9999`,
+    range: `${SHEET_NAME}!A2:AD9999`,
   });
   const rows = res.data.values ?? [];
 
@@ -170,7 +159,6 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
       const proximaRevisao = row[COLS.DATA_PROXIMA_REVISAO] ?? "";
       const dias = calcularDiasVencimento(proximaRevisao);
       const statusValidade = calcularStatusValidade(dias);
-
       return {
         _linha:               i + 2,
         id:                   row[COLS.ID]                    ?? "",
@@ -202,6 +190,10 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
         concluidaPor:         row[COLS.CONCLUIDA_POR]         ?? "",
         elaborador:           row[COLS.ELABORADOR]            ?? "",
         aprovador:            row[COLS.APROVADOR]             ?? "",
+        cadastradoEm:         row[COLS.CADASTRADO_EM]         ?? "",
+        cadastradoPor:        row[COLS.CADASTRADO_POR]        ?? "",
+        atualizadoEm:         row[COLS.ATUALIZADO_EM]         ?? "",
+        atualizadoPor:        row[COLS.ATUALIZADO_POR]        ?? "",
         // Legacy
         status:               statusValidade,
         dataRevisao:          proximaRevisao,
@@ -230,6 +222,8 @@ export async function adicionarNaPlanilha(
   );
   const id = await gerarId(sheets);
 
+  const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza" });
+
   const row = [
     id,                                     // A - ID
     doc.tipoDocumento   ?? "",              // B - Tipo de Documento
@@ -257,11 +251,15 @@ export async function adicionarNaPlanilha(
     doc.concluidaPor    ?? "",              // X - Concluída por
     doc.elaborador      ?? "",              // Y - Elaborador
     doc.aprovador       ?? "",              // Z - Aprovador
+    agora,                                  // AA - Cadastrado Em
+    doc.cadastradoPor   ?? "",              // AB - Cadastrado Por
+    agora,                                  // AC - Atualizado Em
+    doc.cadastradoPor   ?? "",              // AD - Atualizado Por
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:W`,
+    range: `${SHEET_NAME}!A:AD`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -311,7 +309,7 @@ export async function atualizarNaPlanilha(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A${linha}:W${linha}`,
+    range: `${SHEET_NAME}!A${linha}:AD${linha}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
@@ -320,7 +318,7 @@ export async function atualizarNaPlanilha(
 export async function ensureHeaders(accessToken: string, refreshToken?: string) {
   const sheets = getSheetsClient(accessToken, refreshToken);
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A1:W1`,
+    spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A1:AD1`,
   }).catch(() => null);
   const hasHeader = res?.data?.values?.[0]?.[0] === "ID";
   if (!hasHeader) {
