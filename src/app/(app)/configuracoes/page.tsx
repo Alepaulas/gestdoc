@@ -169,6 +169,7 @@ export default function Configuracoes() {
                     <option value="">Sem papel no fluxo</option>
                     <option value="UNIDADE">Unidade</option>
                     <option value="REFERENCIA_TECNICA">Referência Técnica</option>
+                    <option value="NUGESP">NUGESP</option>
                     <option value="GESTDOC">GestDoc</option>
                     <option value="OPERACIONAL">Operacional</option>
                   </select>
