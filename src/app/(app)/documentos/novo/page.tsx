@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FileText, ArrowLeft, Loader2, Hash } from "lucide-react";
 import Link from "next/link";
 import { TIPOS_ORDENADOS, TIPO_NIVEL, TIPO_VIGENCIA_ANOS, calcularProximaRevisao, type TipoDocumento } from "@/lib/normaZero";
+import { UNIDADES_OPTIONS } from "@/lib/unidades";
 
 const AREAS = [
   {sigla:"AGT",nome:"Agência Transfusional"},{sigla:"ALM",nome:"Almoxarifado"},
@@ -70,10 +71,9 @@ export default function NovoDocumentoPage() {
   const [usuarios, setUsuarios] = useState<{id:string;name:string|null;email:string|null}[]>([]);
   const [elaboradoresSelecionados, setElaboradoresSelecionados] = useState<string[]>([]);
   const [showElaboradores, setShowElaboradores] = useState(false);
-  const [unidades, setUnidades] = useState<{id:string;nome:string;sigla:string}[]>([]);
+  const [unidades] = useState(UNIDADES_OPTIONS);
 
   useEffect(() => {
-    fetch("/api/unidades").then(r=>r.json()).then(d => { if (Array.isArray(d)) setUnidades(d); }).catch(()=>{});
     fetch("/api/users").then(r=>r.json()).then(d => { if (Array.isArray(d)) setUsuarios(d); }).catch(()=>{});
   }, []);
 
@@ -228,7 +228,7 @@ export default function NovoDocumentoPage() {
             placeholder="Ex: POP de Higienização de Mãos"/>
           <div className="grid grid-cols-2 gap-4">
             <Select label="Unidade" value={form.unidade} onChange={set("unidade")}
-              options={unidades.map(u => ({ value: u.sigla, label: `${u.sigla} — ${u.nome}` }))}/>
+              options={UNIDADES_OPTIONS}/>
           </div>
         </Section>
 

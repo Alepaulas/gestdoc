@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Search, Package, CheckCircle, AlertTriangle, XCircle, FileText, ExternalLink, Filter } from "lucide-react";
+import { Search, Package, CheckCircle, AlertTriangle, XCircle, ExternalLink } from "lucide-react";
+import { UNIDADES } from "@/lib/unidades";
 
 type Doc = {
   _linha: number;
@@ -128,9 +129,13 @@ export default function InventarioPage() {
           <option value="VENCIDO">Vencido</option>
         </select>
         {isAdmin && (
-          <input value={unidadeFiltro} onChange={e => setUnidadeFiltro(e.target.value)}
-            placeholder="Filtrar por unidade..."
-            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-48"/>
+          <select value={unidadeFiltro} onChange={e => setUnidadeFiltro(e.target.value)}
+            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-52">
+            <option value="">Todas as unidades</option>
+            {UNIDADES.map(u => (
+              <option key={u.sigla} value={u.sigla}>{u.sigla} — {u.nome}</option>
+            ))}
+          </select>
         )}
       </div>
 

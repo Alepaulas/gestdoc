@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, RefreshCw, FileText, Clock, CheckCircle, AlertTriangle, XCircle, Filter } from "lucide-react";
+import { Plus, Search, RefreshCw, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { UNIDADES } from "@/lib/unidades";
 
 type Doc = {
   _linha: number;
@@ -45,7 +46,7 @@ export default function ListaMestraPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroUnidade, setFiltroUnidade] = useState("");
   const [syncing, setSyncing] = useState(false);
 
   async function load() {
@@ -53,9 +54,9 @@ export default function ListaMestraPage() {
     setError("");
     try {
       const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (filtroStatus) params.set("status", filtroStatus);
-      if (filtroTipo) params.set("tipo", filtroTipo);
+      if (search)        params.set("search", search);
+      if (filtroStatus)  params.set("status", filtroStatus);
+      if (filtroUnidade) params.set("unidade", filtroUnidade);
       const res = await fetch(`/api/lista-mestra?${params}`);
       const j = await res.json();
       if (j.error) setError(j.error);
@@ -64,7 +65,7 @@ export default function ListaMestraPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, [search, filtroStatus, filtroTipo]);
+  useEffect(() => { load(); }, [search, filtroStatus, filtroUnidade]);
 
   async function sincronizar() {
     setSyncing(true);
@@ -130,6 +131,13 @@ export default function ListaMestraPage() {
           <option value="VIGENTE">Vigente</option>
           <option value="VENCENDO">Vencendo</option>
           <option value="VENCIDO">Vencido</option>
+        </select>
+        <select value={filtroUnidade} onChange={e=>setFiltroUnidade(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-48">
+          <option value="">Todas as unidades</option>
+          {UNIDADES.map(u => (
+            <option key={u.sigla} value={u.sigla}>{u.sigla}</option>
+          ))}
         </select>
       </div>
 
