@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Upload, X, FileText, Loader2, ClipboardPlus } from "lucide-react";
 import Link from "next/link";
@@ -24,7 +24,6 @@ export default function NovaSolicitacaoPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [arquivos, setArquivos] = useState<File[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     tipoRequisicao: "Elaboração",
@@ -166,13 +165,13 @@ export default function NovaSolicitacaoPage() {
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-widest text-slate-600 border-b border-slate-100 pb-2">Documentos Anexos <span className="text-red-500">*</span></h2>
 
-          <div onClick={() => inputRef.current?.click()}
-            className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-slate-50 transition-colors">
-            <input ref={inputRef} type="file" multiple className="hidden"
+          <label htmlFor="file-upload"
+            className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-slate-50 transition-colors block">
+            <input id="file-upload" type="file" multiple className="hidden"
               onChange={e => { if (e.target.files) setArquivos(p => [...p, ...Array.from(e.target.files!)]); e.target.value = ""; }}/>
             <Upload className="w-5 h-5 mx-auto text-slate-400 mb-2"/>
             <p className="text-sm text-slate-500">Clique para anexar documentos</p>
-          </div>
+          </label>
 
           {arquivos.length > 0 && (
             <div className="space-y-2">
