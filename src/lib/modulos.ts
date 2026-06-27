@@ -1,11 +1,11 @@
 // Controle de acesso por módulo — baseado no papelFluxo do usuário.
 // Para adicionar um novo módulo: inclua em NAV_ITEMS e em PAPEL_MODULOS.
 
-import { Home, FileText, Map, ClipboardList, Settings, WandSparkles, GitCompare, Package, ClipboardPlus, type LucideIcon } from "lucide-react";
+import { Home, FileText, Map, ClipboardList, Settings, WandSparkles, GitCompare, Package, ClipboardPlus, BookOpen, type LucideIcon } from "lucide-react";
 
 export type Modulo =
-  | "dashboard" | "documentos" | "solicitacoes" | "inventario"
-  | "ona" | "auditoria" | "formatador" | "revisor" | "configuracoes";
+  | "dashboard" | "documentos" | "solicitacoes" | "publicados"
+  | "inventario" | "ona" | "auditoria" | "formatador" | "revisor" | "configuracoes";
 
 export type PapelFluxo =
   | "UNIDADE" | "REFERENCIA_TECNICA" | "NUGESP" | "GESTDOC" | "OPERACIONAL" | "ADMIN";
@@ -14,6 +14,7 @@ export const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; modulo:
   { href: "/dashboard",     label: "Home",          icon: Home,          modulo: "dashboard"    },
   { href: "/documentos",    label: "Documentos",    icon: FileText,      modulo: "documentos"   },
   { href: "/solicitacoes",  label: "Solicitações",  icon: ClipboardPlus, modulo: "solicitacoes" },
+  { href: "/publicados",    label: "Publicados",    icon: BookOpen,      modulo: "publicados"   },
   { href: "/inventario",    label: "Inventário",    icon: Package,       modulo: "inventario"   },
   { href: "/ona",           label: "Mapa ONA",      icon: Map,           modulo: "ona"          },
   { href: "/auditoria",     label: "Auditoria",     icon: ClipboardList, modulo: "auditoria"    },
@@ -23,12 +24,12 @@ export const NAV_ITEMS: { href: string; label: string; icon: LucideIcon; modulo:
 ];
 
 export const PAPEL_MODULOS: Record<PapelFluxo, Modulo[]> = {
-  UNIDADE:            ["dashboard", "solicitacoes", "inventario"],
-  REFERENCIA_TECNICA: ["dashboard", "documentos", "solicitacoes"],
-  NUGESP:             ["dashboard", "documentos", "solicitacoes"],
-  GESTDOC:            ["dashboard", "documentos", "solicitacoes", "formatador", "revisor"],
-  OPERACIONAL:        ["dashboard", "formatador", "inventario"],
-  ADMIN:              ["dashboard", "documentos", "solicitacoes", "inventario", "ona", "auditoria", "formatador", "revisor", "configuracoes"],
+  UNIDADE:            ["dashboard", "solicitacoes", "publicados", "inventario"],
+  REFERENCIA_TECNICA: ["dashboard", "documentos", "solicitacoes", "publicados"],
+  NUGESP:             ["dashboard", "documentos", "solicitacoes", "publicados"],
+  GESTDOC:            ["dashboard", "documentos", "solicitacoes", "publicados", "formatador", "revisor"],
+  OPERACIONAL:        ["dashboard", "formatador", "publicados", "inventario"],
+  ADMIN:              ["dashboard", "documentos", "solicitacoes", "publicados", "inventario", "ona", "auditoria", "formatador", "revisor", "configuracoes"],
 };
 
 export function modulosPermitidos(papelFluxo: string | null | undefined, role: string | null | undefined): Modulo[] {
