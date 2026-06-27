@@ -83,8 +83,6 @@ export default function Configuracoes() {
     UNIDADE: "bg-green-100 text-green-700",
     OPERACIONAL: "bg-amber-100 text-amber-700",
   };
-    VIEWER: "bg-slate-100 text-slate-600",
-  };
 
   return (
     <div>
