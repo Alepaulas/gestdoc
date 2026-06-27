@@ -1,53 +1,88 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Shield, Bell, HardDrive, Play, CheckCircle, RefreshCw, Table } from "lucide-react";
+import { Shield, Bell, HardDrive, Play, CheckCircle, RefreshCw, Table, Plus, Trash2, Loader2 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { UNIDADES } from "@/lib/unidades";
 
 export default function Configuracoes() {
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
   const [users, setUsers] = useState<any[]>([]);
-  const [unidades, setUnidades] = useState<any[]>([]);
   const [alertResult, setAlertResult] = useState<any>(null);
   const [alertLoading, setAlertLoading] = useState(false);
   const [sheetsResult, setSheetsResult] = useState<any>(null);
   const [sheetsLoading, setSheetsLoading] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [novoUsuario, setNovoUsuario] = useState({ email: "", nome: "", papel: "", unidade: "" });
+  const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetch("/api/users").then(r=>r.json()).then(setUsers);
-      fetch("/api/unidades").then(r=>r.json()).then(setUnidades).catch(()=>setUnidades([]));
-    }
-  }, [isAdmin]);
-
-  async function changeRole(userId: string, role: string) {
-    await fetch("/api/users", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({userId,role}) });
-    setUsers(u => u.map(x => x.id===userId ? {...x,role} : x));
+  async function loadUsers() {
+    if (!isAdmin) return;
+    fetch("/api/users").then(r=>r.json()).then(d => {
+      if (Array.isArray(d)) setUsers(d);
+    }).catch(()=>{});
   }
 
-  async function changeFluxo(userId: string, field: "unidadeId" | "papelFluxo", value: string) {
-    await fetch("/api/users", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({userId,[field]:value}) });
-    setUsers(u => u.map(x => x.id===userId ? {...x,[field]:value || null} : x));
+  useEffect(() => { loadUsers(); }, [isAdmin]);
+
+  async function salvarUsuario() {
+    if (!novoUsuario.email || !novoUsuario.papel) return;
+    setSavingUser(true);
+    await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(novoUsuario),
+    });
+    setNovoUsuario({ email: "", nome: "", papel: "", unidade: "" });
+    setShowForm(false);
+    await loadUsers();
+    setSavingUser(false);
+  }
+
+  async function removerUsuario(email: string) {
+    if (!confirm(`Remover ${email}?`)) return;
+    await fetch("/api/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    await loadUsers();
+  }
+
+  async function alterarCampo(email: string, campo: string, valor: string) {
+    const u = users.find(x => x.email === email);
+    if (!u) return;
+    await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...u, [campo]: valor }),
+    });
+    setUsers(prev => prev.map(x => x.email === email ? { ...x, [campo]: valor } : x));
   }
 
   async function runAlertas() {
     setAlertLoading(true); setAlertResult(null);
-    const r = await fetch("/api/alertas", { method:"POST" });
+    const r = await fetch("/api/alertas", { method: "POST" });
     setAlertResult(await r.json());
     setAlertLoading(false);
   }
 
   async function syncSheets() {
     setSheetsLoading(true); setSheetsResult(null);
-    const r = await fetch("/api/sheets", { method:"POST" });
+    const r = await fetch("/api/sheets", { method: "POST" });
     const d = await r.json();
     setSheetsResult(d);
     setSheetsLoading(false);
   }
 
-  const ROLE_COLORS: Record<string,string> = {
+  const PAPEL_COLORS: Record<string,string> = {
     ADMIN: "bg-red-100 text-red-700",
-    EDITOR: "bg-blue-100 text-blue-700",
+    GESTDOC: "bg-indigo-100 text-indigo-700",
+    NUGESP: "bg-purple-100 text-purple-700",
+    REFERENCIA_TECNICA: "bg-blue-100 text-blue-700",
+    UNIDADE: "bg-green-100 text-green-700",
+    OPERACIONAL: "bg-amber-100 text-amber-700",
+  };
     VIEWER: "bg-slate-100 text-slate-600",
   };
 
@@ -133,58 +168,110 @@ export default function Configuracoes() {
           </div>
         )}
 
-        {/* Usuários */}
+        {/* Usuários — gerenciados pela aba USUARIOS da planilha */}
         {isAdmin && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <h2 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-blue-600"/>
-              Controle de acesso
-            </h2>
-            <div className="space-y-2">
-              {users.map(u => (
-                <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50">
-                  {u.image
-                    ? <img src={u.image} className="w-8 h-8 rounded-full" alt=""/>
-                    : <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700">{u.name?.[0]}</div>
-                  }
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{u.name}</p>
-                    <p className="text-xs text-slate-400 truncate">{u.email}</p>
-                  </div>
-                  <select
-                    value={u.unidadeId ?? ""}
-                    onChange={e => changeFluxo(u.id, "unidadeId", e.target.value)}
-                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Sem unidade</option>
-                    {unidades.map((un:any) => (
-                      <option key={un.id} value={un.id}>{un.sigla}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={u.papelFluxo ?? ""}
-                    onChange={e => changeFluxo(u.id, "papelFluxo", e.target.value)}
-                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Sem papel no fluxo</option>
-                    <option value="UNIDADE">Unidade</option>
-                    <option value="REFERENCIA_TECNICA">Referência Técnica</option>
-                    <option value="NUGESP">NUGESP</option>
-                    <option value="GESTDOC">GestDoc</option>
-                    <option value="OPERACIONAL">Operacional</option>
-                  </select>
-                  <select
-                    value={u.role}
-                    onChange={e => changeRole(u.id, e.target.value)}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 ${ROLE_COLORS[u.role]}`}
-                  >
-                    <option value="ADMIN">Admin</option>
-                    <option value="EDITOR">Editor</option>
-                    <option value="VIEWER">Visualizador</option>
-                  </select>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-blue-600"/>
+                Controle de acesso
+              </h2>
+              <button onClick={() => setShowForm(v => !v)}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                <Plus className="w-3.5 h-3.5"/> Adicionar usuário
+              </button>
             </div>
+
+            {/* Formulário de novo usuário */}
+            {showForm && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 space-y-3">
+                <p className="text-xs font-semibold text-slate-600">Novo usuário</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Email *</label>
+                    <input value={novoUsuario.email} onChange={e => setNovoUsuario(p=>({...p,email:e.target.value}))}
+                      placeholder="usuario@isgh.org.br"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Nome</label>
+                    <input value={novoUsuario.nome} onChange={e => setNovoUsuario(p=>({...p,nome:e.target.value}))}
+                      placeholder="Nome completo"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Papel *</label>
+                    <select value={novoUsuario.papel} onChange={e => setNovoUsuario(p=>({...p,papel:e.target.value}))}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                      <option value="">Selecione...</option>
+                      <option value="ADMIN">Admin</option>
+                      <option value="GESTDOC">GestDoc</option>
+                      <option value="NUGESP">NUGESP</option>
+                      <option value="REFERENCIA_TECNICA">Referência Técnica</option>
+                      <option value="UNIDADE">Unidade</option>
+                      <option value="OPERACIONAL">Operacional</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Unidade</label>
+                    <select value={novoUsuario.unidade} onChange={e => setNovoUsuario(p=>({...p,unidade:e.target.value}))}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                      <option value="">Sem unidade</option>
+                      {UNIDADES.map(u => <option key={u.sigla} value={u.sigla}>{u.sigla} — {u.nome}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={salvarUsuario} disabled={savingUser}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
+                    {savingUser ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <CheckCircle className="w-3.5 h-3.5"/>}
+                    Salvar
+                  </button>
+                  <button onClick={() => setShowForm(false)} className="text-slate-500 text-xs px-3 py-2 hover:text-slate-700">Cancelar</button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de usuários */}
+            {users.length === 0
+              ? <p className="text-xs text-slate-400 text-center py-6">Nenhum usuário cadastrado ainda.<br/>Adicione o primeiro usuário acima.</p>
+              : (
+              <div className="space-y-2">
+                {users.filter(u => u.email).map((u, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700 flex-shrink-0">
+                      {(u.nome || u.email)?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{u.nome || "—"}</p>
+                      <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${PAPEL_COLORS[u.papel] ?? "bg-slate-100 text-slate-500"}`}>
+                      {u.papel}
+                    </span>
+                    <select value={u.papel} onChange={e => alterarCampo(u.email, "papel", e.target.value)}
+                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                      <option value="ADMIN">Admin</option>
+                      <option value="GESTDOC">GestDoc</option>
+                      <option value="NUGESP">NUGESP</option>
+                      <option value="REFERENCIA_TECNICA">Ref. Técnica</option>
+                      <option value="UNIDADE">Unidade</option>
+                      <option value="OPERACIONAL">Operacional</option>
+                    </select>
+                    <select value={u.unidade} onChange={e => alterarCampo(u.email, "unidade", e.target.value)}
+                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-32">
+                      <option value="">Sem unidade</option>
+                      {UNIDADES.map(un => <option key={un.sigla} value={un.sigla}>{un.sigla}</option>)}
+                    </select>
+                    <button onClick={() => removerUsuario(u.email)}
+                      className="text-slate-300 hover:text-red-500 transition-colors ml-1">
+                      <Trash2 className="w-4 h-4"/>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-slate-400 mt-3">💡 Usuários gerenciados na aba <strong>USUARIOS</strong> da planilha Lista Mestra.</p>
           </div>
         )}
       </div>

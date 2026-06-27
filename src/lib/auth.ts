@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import { buscarUsuarioPorEmail } from "@/lib/sheets";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -9,9 +10,7 @@ export const authOptions: NextAuthOptions = {
       authorization: {
         params: {
           scope: [
-            "openid",
-            "email",
-            "profile",
+            "openid", "email", "profile",
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive",
             "https://www.googleapis.com/auth/gmail.send",
@@ -23,58 +22,74 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user }) {
-      const dominios = (process.env.ALLOWED_DOMAINS ?? "")
-        .split(",").map(d => d.trim()).filter(Boolean);
-      if (dominios.length === 0) return true;
-      const permitido = dominios.some(d => user.email?.endsWith(d));
-      if (!permitido) return "/login?error=DomainNotAllowed";
+    async signIn({ user, account }) {
+      // Verifica se o email está na aba USUARIOS da planilha
+      if (!user.email) return "/login?error=NoEmail";
+
+      const accessToken  = account?.access_token;
+      const refreshToken = account?.refresh_token;
+      if (!accessToken) return "/login?error=NoToken";
+
+      try {
+        const usuario = await buscarUsuarioPorEmail(accessToken, refreshToken, user.email);
+        if (!usuario) return "/login?error=AccessDenied";
+      } catch {
+        // Se falhar a leitura da planilha, permite o admin hardcoded
+        const adminEmail = process.env.ADMIN_EMAIL ?? "";
+        if (user.email !== adminEmail) return "/login?error=AccessDenied";
+      }
+
       return true;
     },
+
     async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
+        token.id      = user.id;
+        token.email   = user.email;
+        token.name    = user.name;
         token.picture = user.image;
       }
       if (account) {
-        // Guarda tokens Google na sessão JWT
-        token.accessToken = account.access_token;
+        token.accessToken  = account.access_token;
         token.refreshToken = account.refresh_token;
       }
+
+      // Busca papel e unidade da planilha a cada login ou quando não tiver no token
+      if (token.email && token.accessToken && !token.papelFluxo) {
+        try {
+          const usuario = await buscarUsuarioPorEmail(
+            token.accessToken as string,
+            token.refreshToken as string | undefined,
+            token.email as string
+          );
+          if (usuario) {
+            token.papelFluxo = usuario.papel;
+            token.unidade    = usuario.unidade;
+            token.role       = usuario.papel === "ADMIN" ? "ADMIN" : "EDITOR";
+            token.nomeUsuario = usuario.nome || token.name;
+          }
+        } catch {}
+      }
+
+      // Fallback: admin pelo ADMIN_EMAIL
       if (!token.role) {
         const adminEmail = process.env.ADMIN_EMAIL ?? "";
         token.role = token.email === adminEmail ? "ADMIN" : "EDITOR";
       }
-      // Busca papelFluxo e unidadeId do banco a cada login (ou se ainda não estiver no token)
-      if (!token.papelFluxo && token.sub) {
-        try {
-          const { prisma } = await import("@/lib/db");
-          const dbUser = await prisma.user.findUnique({
-            where: { id: token.sub as string },
-            select: { papelFluxo: true, unidadeId: true, role: true },
-          });
-          if (dbUser) {
-            token.papelFluxo = dbUser.papelFluxo;
-            token.unidadeId  = dbUser.unidadeId;
-            if (dbUser.role) token.role = dbUser.role;
-          }
-        } catch {}
-      }
+
       return token;
     },
+
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id         = token.sub ?? token.id;
-        (session.user as any).role       = token.role ?? "EDITOR";
-        (session.user as any).papelFluxo = token.papelFluxo ?? null;
-        (session.user as any).unidadeId  = token.unidadeId  ?? null;
+        (session.user as any).id          = token.sub ?? token.id;
+        (session.user as any).role        = token.role ?? "EDITOR";
+        (session.user as any).papelFluxo  = token.papelFluxo ?? null;
+        (session.user as any).unidade     = token.unidade ?? null;
         session.user.email = token.email as string;
-        session.user.name  = token.name  as string;
+        session.user.name  = (token.nomeUsuario as string) || (token.name as string);
         session.user.image = token.picture as string;
       }
-      // Expõe tokens Google na sessão (necessário para Sheets/Drive/Gmail)
       (session as any).accessToken  = token.accessToken;
       (session as any).refreshToken = token.refreshToken;
       return session;

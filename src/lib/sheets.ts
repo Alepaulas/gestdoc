@@ -328,3 +328,58 @@ export async function ensureHeaders(accessToken: string, refreshToken?: string) 
     });
   }
 }
+
+// ── Aba USUARIOS ──────────────────────────────────────────
+// Colunas: A=EMAIL | B=NOME | C=PAPEL | D=UNIDADE
+const USUARIOS_SHEET = "USUARIOS";
+const USUARIOS_HEADERS = ["EMAIL", "NOME", "PAPEL", "UNIDADE"];
+
+export type UsuarioPlanilha = {
+  email: string;
+  nome: string;
+  papel: string;  // ADMIN | GESTDOC | NUGESP | REFERENCIA_TECNICA | UNIDADE | OPERACIONAL
+  unidade: string;
+};
+
+export async function lerUsuarios(accessToken: string, refreshToken?: string): Promise<UsuarioPlanilha[]> {
+  const sheets = getSheetsClient(accessToken, refreshToken);
+
+  // Garante cabeçalho
+  const header = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${USUARIOS_SHEET}!A1:D1`,
+  }).catch(() => null);
+
+  if (!header?.data?.values?.[0]?.[0]) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${USUARIOS_SHEET}!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [USUARIOS_HEADERS] },
+    }).catch(() => {});
+  }
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${USUARIOS_SHEET}!A2:D9999`,
+  }).catch(() => null);
+
+  const rows = res?.data?.values ?? [];
+  return rows
+    .filter(r => r[0]?.trim())
+    .map(r => ({
+      email:    (r[0] ?? "").trim().toLowerCase(),
+      nome:     (r[1] ?? "").trim(),
+      papel:    (r[2] ?? "").trim().toUpperCase(),
+      unidade:  (r[3] ?? "").trim().toUpperCase(),
+    }));
+}
+
+export async function buscarUsuarioPorEmail(
+  accessToken: string,
+  refreshToken: string | undefined,
+  email: string
+): Promise<UsuarioPlanilha | null> {
+  const usuarios = await lerUsuarios(accessToken, refreshToken);
+  return usuarios.find(u => u.email === email.toLowerCase()) ?? null;
+}
