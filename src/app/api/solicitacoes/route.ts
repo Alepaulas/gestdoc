@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any).id as string;
   const papel  = (session.user as any).papelFluxo as string | null;
 
-  if (papel !== "UNIDADE") {
+  const role   = (session.user as any).role as string;
+  if (papel !== "UNIDADE" && role !== "ADMIN" && papel !== "GESTDOC") {
     return NextResponse.json({ error: "Apenas usuários com papel UNIDADE podem abrir solicitações." }, { status: 403 });
   }
 
