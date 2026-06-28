@@ -25,37 +25,39 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (!user.email) return "/login?error=NoEmail";
-
       const accessToken  = account?.access_token;
       const refreshToken = account?.refresh_token;
       if (!accessToken) return "/login?error=NoToken";
 
-      let usuario = null;
+      let papel = "EDITOR";
+      let nome  = user.name || "";
+
       try {
-        usuario = await buscarUsuarioPorEmail(accessToken, refreshToken, user.email);
-      } catch {}
+        const usuario = await buscarUsuarioPorEmail(accessToken, refreshToken, user.email);
+        if (!usuario) {
+          const adminEmail = process.env.ADMIN_EMAIL ?? "";
+          if (user.email !== adminEmail) return "/login?error=AccessDenied";
+        } else {
+          papel = usuario.papel;
+          nome  = usuario.nome || user.name || "";
+        }
+      } catch {
+        const adminEmail = process.env.ADMIN_EMAIL ?? "";
+        if (user.email !== adminEmail) return "/login?error=AccessDenied";
+      }
 
-      // Verifica acesso — admin hardcoded sempre passa
-      const adminEmail = process.env.ADMIN_EMAIL ?? "";
-      const isAdmin = user.email === adminEmail;
-      if (!usuario && !isAdmin) return "/login?error=AccessDenied";
-
-      // Cria ou atualiza usuário no banco (necessário para FK em Solicitacao)
+      // Garante usuário no banco para FKs do Prisma funcionarem
       try {
         await prisma.user.upsert({
-          where: { email: user.email },
-          update: {
-            name:       user.name  ?? usuario?.nome ?? "",
-            image:      user.image ?? "",
-            papelFluxo: usuario?.papel    ?? (isAdmin ? "ADMIN" : null),
-            role:       isAdmin ? "ADMIN" : (usuario?.papel === "ADMIN" ? "ADMIN" : "EDITOR"),
-          },
+          where:  { email: user.email },
+          update: { name: nome, image: user.image || null, papelFluxo: papel, role: papel === "ADMIN" ? "ADMIN" : "EDITOR" },
           create: {
+            id:         user.id || user.email,
             email:      user.email,
-            name:       user.name  ?? usuario?.nome ?? "",
-            image:      user.image ?? "",
-            papelFluxo: usuario?.papel    ?? (isAdmin ? "ADMIN" : null),
-            role:       isAdmin ? "ADMIN" : (usuario?.papel === "ADMIN" ? "ADMIN" : "EDITOR"),
+            name:       nome,
+            image:      user.image || null,
+            role:       papel === "ADMIN" ? "ADMIN" : "EDITOR",
+            papelFluxo: papel,
           },
         });
       } catch (e) {
@@ -66,18 +68,9 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user, account }) {
-      if (user) {
-        token.id      = user.id;
-        token.email   = user.email;
-        token.name    = user.name;
-        token.picture = user.image;
-      }
-      if (account) {
-        token.accessToken  = account.access_token;
-        token.refreshToken = account.refresh_token;
-      }
+      if (user)    { token.id = user.id; token.email = user.email; token.name = user.name; token.picture = user.image; }
+      if (account) { token.accessToken = account.access_token; token.refreshToken = account.refresh_token; }
 
-      // Busca papel e unidade da planilha
       if (token.email && token.accessToken && !token.papelFluxo) {
         try {
           const usuario = await buscarUsuarioPorEmail(
@@ -94,25 +87,9 @@ export const authOptions: NextAuthOptions = {
         } catch {}
       }
 
-      // Fallback admin
       if (!token.role) {
         const adminEmail = process.env.ADMIN_EMAIL ?? "";
         token.role = token.email === adminEmail ? "ADMIN" : "EDITOR";
-      }
-      if (!token.papelFluxo) {
-        const adminEmail = process.env.ADMIN_EMAIL ?? "";
-        if (token.email === adminEmail) token.papelFluxo = "ADMIN";
-      }
-
-      // Sincroniza ID do banco
-      if (token.email && !token.dbId) {
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { email: token.email as string },
-            select: { id: true },
-          });
-          if (dbUser) token.dbId = dbUser.id;
-        } catch {}
       }
 
       return token;
@@ -120,7 +97,7 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id         = token.dbId ?? token.sub ?? token.id;
+        (session.user as any).id         = token.sub ?? token.id;
         (session.user as any).role       = token.role ?? "EDITOR";
         (session.user as any).papelFluxo = token.papelFluxo ?? null;
         (session.user as any).unidade    = token.unidade ?? null;
