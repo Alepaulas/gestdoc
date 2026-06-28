@@ -22,8 +22,6 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
   VENCIDO:  { label: "Vencido",  bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200",    icon: XCircle      },
 };
 
-const STATUS_DOCUMENTO_OPTIONS = ["VIGENTE", "EM REVISÃO", "OBSOLETO", "SUSPENSO", "CANCELADO"];
-
 const STATUS_DOC_COLOR: Record<string, string> = {
   "VIGENTE":    "bg-green-100 text-green-700",
   "EM REVISÃO": "bg-blue-100 text-blue-700",
@@ -187,10 +185,12 @@ export default function PublicadosPage() {
                       <td className="px-4 py-3">
                         {isEditando ? (
                           <div className="flex items-center gap-1">
-                            <select value={editando.valor} onChange={e => setEditando({ ...editando, valor: e.target.value })}
-                              className="text-xs border border-slate-200 rounded px-2 py-1 bg-white">
-                              {STATUS_DOCUMENTO_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <input
+                              value={editando.valor}
+                              onChange={e => setEditando({ ...editando, valor: e.target.value })}
+                              className="text-xs border border-slate-200 rounded px-2 py-1 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                              placeholder="Status do documento..."
+                            />
                             <button onClick={salvarStatus} disabled={salvando}
                               className="text-green-600 hover:text-green-800">
                               {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Check className="w-3.5 h-3.5"/>}
