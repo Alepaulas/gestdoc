@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, RefreshCw, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { Plus, Search, RefreshCw, CheckCircle, AlertTriangle, XCircle, Download, FileText } from "lucide-react";
 import { UNIDADES } from "@/lib/unidades";
+import { useSession } from "next-auth/react";
 
 type Doc = {
   _linha: number;
@@ -49,7 +50,21 @@ export default function ListaMestraPage() {
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [syncing, setSyncing] = useState(false);
 
-  async function load() {
+  const { data: session } = useSession();
+  const papel = (session?.user as any)?.papelFluxo as string;
+  const role  = (session?.user as any)?.role as string;
+  const podeExportar = papel === "GESTDOC" || role === "ADMIN";
+
+  function exportar(formato: "excel" | "pdf") {
+    const url = `/api/exportar?formato=${formato}`;
+    if (formato === "pdf") {
+      window.open(url, "_blank");
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.click();
+    }
+  }
     setLoading(true);
     setError("");
     try {
@@ -90,6 +105,16 @@ export default function ListaMestraPage() {
           <p className="text-slate-500 text-sm mt-1">Controle de documentos conforme Norma Zero ISGH</p>
         </div>
         <div className="flex gap-2">
+          {podeExportar && (<>
+            <button onClick={() => exportar("excel")}
+              className="flex items-center gap-2 px-4 py-2 border border-green-200 bg-green-50 hover:bg-green-100 rounded-xl text-sm text-green-700 font-medium transition-colors">
+              <Download className="w-4 h-4"/> Excel
+            </button>
+            <button onClick={() => exportar("pdf")}
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 bg-red-50 hover:bg-red-100 rounded-xl text-sm text-red-700 font-medium transition-colors">
+              <FileText className="w-4 h-4"/> PDF
+            </button>
+          </>)}
           <button onClick={sincronizar} disabled={syncing}
             className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">
             <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`}/>

@@ -5,6 +5,7 @@ import { signOut, useSession } from "next-auth/react";
 import { LogOut, ChevronRight, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, modulosPermitidos } from "@/lib/modulos";
+import { SinoNotificacoes } from "@/components/SinoNotificacoes";
 
 export function Sidebar() {
   const path = usePathname();
@@ -63,6 +64,7 @@ export function Sidebar() {
             <p className="text-white text-xs font-medium truncate">{session?.user?.name}</p>
             <p className="text-slate-500 text-[10px] truncate">{session?.user?.email}</p>
           </div>
+          <SinoNotificacoes />
           <button onClick={() => signOut({ callbackUrl:"/login" })} className="text-slate-500 hover:text-red-400 transition-colors">
             <LogOut className="w-3.5 h-3.5"/>
           </button>
