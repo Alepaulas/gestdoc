@@ -65,6 +65,8 @@ export default function ListaMestraPage() {
       a.click();
     }
   }
+
+  async function load() {
     setLoading(true);
     setError("");
     try {
