@@ -3,9 +3,9 @@ import { useEffect, useState, useCallback } from "react";
 import { Search, Download, AlertTriangle, CheckCircle, XCircle, Filter, ClipboardList } from "lucide-react";
 
 interface DocAuditoria {
-  titulo: string; codigo: string; tipo: string; unidade: string;
-  area: string; nome: string; status: string; dataRevisao: string;
-  dataPadronizacao: string; linkEditavel: string; observacao: string;
+  titulo: string; codigo: string; tipoDocumento: string; unidade: string;
+  setor: string; elaborador: string; statusValidade: string; dataProximaRevisao: string;
+  dataPadronizacao: string; linkEmail: string;
   // conformidade calculada
   temCodigo: boolean; temTitulo: boolean; temTipo: boolean;
   temUnidade: boolean; temArea: boolean; temResponsavel: boolean;
@@ -28,25 +28,25 @@ function calcAuditoria(doc: any): DocAuditoria {
 
   const temCodigo = !!doc.codigo?.trim();
   const temTitulo = !!doc.titulo?.trim();
-  const temTipo = !!doc.tipo?.trim();
+  const temTipo = !!doc.tipoDocumento?.trim();
   const temUnidade = !!doc.unidade?.trim();
-  const temArea = !!doc.area?.trim();
-  const temResponsavel = !!doc.nome?.trim();
+  const temArea = !!doc.setor?.trim();
+  const temResponsavel = !!doc.elaborador?.trim();
   const temDataPadronizacao = !!doc.dataPadronizacao?.trim();
-  const temDataRevisao = !!doc.dataRevisao?.trim();
-  const temLink = !!doc.linkEditavel?.trim();
-  const estaVigente = doc.status === "VIGENTE";
+  const temDataRevisao = !!doc.dataProximaRevisao?.trim();
+  const temLink = !!doc.linkEmail?.trim();
+  const estaVigente = doc.statusValidade === "VIGENTE";
 
   if (!temCodigo) naoConformidades.push("Código não preenchido");
   if (!temTitulo) naoConformidades.push("Nome do documento ausente");
   if (!temTipo) naoConformidades.push("Tipo não informado");
   if (!temUnidade) naoConformidades.push("Unidade não informada");
-  if (!temArea) naoConformidades.push("Área não informada");
-  if (!temResponsavel) naoConformidades.push("Responsável não identificado");
+  if (!temArea) naoConformidades.push("Setor não informado");
+  if (!temResponsavel) naoConformidades.push("Elaborador não identificado");
   if (!temDataPadronizacao) naoConformidades.push("Data de padronização ausente");
   if (!temDataRevisao) naoConformidades.push("Data de revisão ausente");
   if (!temLink) naoConformidades.push("Link do documento não cadastrado");
-  if (!estaVigente) naoConformidades.push(`Documento ${doc.status?.toLowerCase() || "sem status"}`);
+  if (!estaVigente) naoConformidades.push(`Documento ${doc.statusValidade?.toLowerCase() || "sem status"}`);
 
   const score = 10 - naoConformidades.length;
 
@@ -96,16 +96,16 @@ export default function Auditoria() {
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
-  const tipos = [...new Set(docs.map(d => d.tipo?.split("—")[0]?.trim()).filter(Boolean))];
+  const tipos = [...new Set(docs.map(d => d.tipoDocumento?.split("—")[0]?.trim()).filter(Boolean))];
   const unidades = [...new Set(docs.map(d => d.unidade).filter(Boolean))];
-  const responsaveis = [...new Set(docs.map(d => d.nome).filter(Boolean))];
+  const responsaveis = [...new Set(docs.map(d => d.elaborador).filter(Boolean))];
 
   const filtrados = docs.filter(d => {
     if (search && !d.titulo.toLowerCase().includes(search.toLowerCase()) &&
         !d.codigo.toLowerCase().includes(search.toLowerCase())) return false;
-    if (tipoFiltro && !d.tipo.includes(tipoFiltro)) return false;
+    if (tipoFiltro && !d.tipoDocumento.includes(tipoFiltro)) return false;
     if (unidadeFiltro && d.unidade !== unidadeFiltro) return false;
-    if (responsavelFiltro && d.nome !== responsavelFiltro) return false;
+    if (responsavelFiltro && d.elaborador !== responsavelFiltro) return false;
     if (apenasNC && d.naoConformidades.length === 0) return false;
     return true;
   });
@@ -117,10 +117,10 @@ export default function Auditoria() {
     : 0;
 
   function exportarCSV() {
-    const header = ["CÓDIGO","DOCUMENTO","TIPO","UNIDADE","ÁREA","RESPONSÁVEL","STATUS","DATA REVISÃO","SCORE","NÃO CONFORMIDADES"];
+    const header = ["CÓDIGO","DOCUMENTO","TIPO","UNIDADE","SETOR","ELABORADOR","STATUS","DATA REVISÃO","SCORE","NÃO CONFORMIDADES"];
     const rows = filtrados.map(d => [
-      d.codigo, d.titulo, d.tipo, d.unidade, d.area, d.nome,
-      d.status, d.dataRevisao, `${d.score}/10`, d.naoConformidades.join(" | ")
+      d.codigo, d.titulo, d.tipoDocumento, d.unidade, d.setor, d.elaborador,
+      d.statusValidade, d.dataProximaRevisao, `${d.score}/10`, d.naoConformidades.join(" | ")
     ]);
     const csv = [header,...rows].map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(";")).join("\n");
     const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
@@ -231,13 +231,13 @@ export default function Auditoria() {
                       </td>
                       <td className="px-3 py-3 max-w-[180px]">
                         <p className="font-semibold text-slate-900 truncate">{doc.titulo}</p>
-                        <p className="text-slate-400 text-[10px] truncate">{doc.tipo}</p>
+                        <p className="text-slate-400 text-[10px] truncate">{doc.tipoDocumento}</p>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <p className="text-slate-700 font-medium">{doc.unidade || "—"}</p>
-                        <p className="text-slate-400 text-[10px]">{doc.area || "—"}</p>
+                        <p className="text-slate-400 text-[10px]">{doc.setor || "—"}</p>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.nome || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.elaborador || "—"}</td>
                       <td className="px-2 py-3 text-center"><Check ok={doc.temCodigo}/></td>
                       <td className="px-2 py-3 text-center"><Check ok={doc.temTipo}/></td>
                       <td className="px-2 py-3 text-center"><Check ok={doc.temResponsavel}/></td>
