@@ -35,6 +35,7 @@ const COLS = {
   CADASTRADO_POR:           27, // AB
   ATUALIZADO_EM:            28, // AC
   ATUALIZADO_POR:           29, // AD
+  ITENS_ONA:                30, // AE
 };
 
 const HEADERS = [
@@ -49,6 +50,7 @@ const HEADERS = [
   "ELABORADOR", "APROVADOR",
   "CADASTRADO EM", "CADASTRADO POR",
   "ATUALIZADO EM", "ATUALIZADO POR",
+  "ITENS ONA",
 ];
 
 // Prazos de revisão por tipo (anos) — Norma Zero
@@ -149,7 +151,7 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
   const sheets = getSheetsClient(accessToken, refreshToken);
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:AD9999`,
+    range: `${SHEET_NAME}!A2:AE9999`,
   });
   const rows = res.data.values ?? [];
 
@@ -197,7 +199,10 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
         // Legacy
         status:               statusValidade,
         dataRevisao:          proximaRevisao,
-        itensONA:             [],
+        itensONA:             (row[COLS.ITENS_ONA] ?? "")
+                                .split(",")
+                                .map((s: string) => s.trim())
+                                .filter(Boolean),
       };
     });
 }
@@ -255,11 +260,12 @@ export async function adicionarNaPlanilha(
     doc.cadastradoPor   ?? "",              // AB - Cadastrado Por
     agora,                                  // AC - Atualizado Em
     doc.cadastradoPor   ?? "",              // AD - Atualizado Por
+    Array.isArray(doc.itensONA) ? doc.itensONA.join(", ") : (doc.itensONA ?? ""), // AE - Itens ONA
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:AD`,
+    range: `${SHEET_NAME}!A:AE`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -309,7 +315,7 @@ export async function atualizarNaPlanilha(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A${linha}:AD${linha}`,
+    range: `${SHEET_NAME}!A${linha}:AE${linha}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
@@ -318,7 +324,7 @@ export async function atualizarNaPlanilha(
 export async function ensureHeaders(accessToken: string, refreshToken?: string) {
   const sheets = getSheetsClient(accessToken, refreshToken);
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A1:AD1`,
+    spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A1:AE1`,
   }).catch(() => null);
   const hasHeader = res?.data?.values?.[0]?.[0] === "ID";
   if (!hasHeader) {

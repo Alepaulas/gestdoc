@@ -100,6 +100,7 @@ export default function NovoDocumentoPage() {
     dataPublicacao: "",
     versao: "00", revisao: "00",
     elaborador: "", aprovador: "", concluidaPor: "",
+    itensONA: "",
   });
 
   const set = (key: string) => (val: string) => setForm(f => ({...f, [key]: val}));
@@ -162,6 +163,7 @@ export default function NovoDocumentoPage() {
         elaborador:           elaboradoresSelecionados.join(", "),
         aprovador:            form.aprovador,
         concluidaPor:         form.concluidaPor,
+        itensONA:             form.itensONA,
       };
 
       const res = await fetch("/api/lista-mestra", {
@@ -274,6 +276,13 @@ export default function NovoDocumentoPage() {
             <Input label="Versão" value={form.versao} onChange={set("versao")} placeholder="00"/>
             <Input label="Revisão" value={form.revisao} onChange={set("revisao")} placeholder="00"/>
           </div>
+        </Section>
+
+        {/* Itens ONA */}
+        <Section title="Vínculo com Acreditação ONA">
+          <Input label="Itens ONA atendidos" value={form.itensONA} onChange={set("itensONA")}
+            placeholder="Ex: 1.2.1, 2.1.3, 3.1.1"/>
+          <p className="text-xs text-slate-400 -mt-2">Separe múltiplos códigos por vírgula. Deixe em branco se não aplicável.</p>
         </Section>
 
         {/* Autoria */}
