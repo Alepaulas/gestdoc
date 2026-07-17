@@ -110,7 +110,6 @@ export default function FormatadorPage() {
             <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-blue-700">
               <div><span className="font-medium">Fonte:</span> {regra.corpo.fonte}</div>
               <div><span className="font-medium">Tamanho:</span> {regra.corpo.tamanho / 2}pt</div>
-              <div><span className="font-medium">Negrito:</span> {regra.corpo.negrito ? "Sim" : "Não"}</div>
               <div><span className="font-medium">Alinhamento:</span> {regra.corpo.alinhamento === "both" ? "Justificado" : "Esquerda"}</div>
               <div><span className="font-medium">Espaçamento:</span> {regra.corpo.espacamentoLinha === 360 ? "1,5 linhas" : "Simples"}</div>
               <div><span className="font-medium">Margens:</span> {regra.margens.esquerda === 284 ? "0,5cm" : "2cm/1,5cm"}</div>
