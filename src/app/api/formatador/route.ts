@@ -5,63 +5,84 @@ import JSZip from "jszip";
 import { REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
 import { registrarAuditoria } from "@/lib/auditoria";
 
-const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-function twips(val: number) { return String(val); }
-
-// Patch document.xml — aplica fonte, tamanho, espaçamento e alinhamento
-// MAS PRESERVA negrito, itálico e outros atributos de ênfase originais
 function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
   const regra = REGRAS_FORMATACAO[tipo];
   const { fonte, tamanho, espacamentoLinha, alinhamento } = regra.corpo;
   const aliStr = alinhamento === "both" ? "both" : alinhamento;
 
-  // Aplica fonte e tamanho nos <w:rPr> — PRESERVA <w:b/>, <w:i/>, <w:u/> e outros
-  xml = xml.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, inner) => {
-    // Remove só fonte e tamanho antigos — NÃO toca em w:b, w:i, w:u, w:color etc.
-    let cleaned = inner
-      .replace(/<w:rFonts[^>]*\/?>/g, "").replace(/<\/w:rFonts>/g, "")
-      .replace(/<w:sz [^/]*\/>/g, "").replace(/<w:szCs [^/]*\/>/g, "");
-    return `<w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
-  });
+  // Separa o XML em parágrafos
+  // A primeira página termina quando há uma quebra de página explícita (<w:lastRenderedPageBreak/> ou <w:pageBreakBefore/> ou <w:br w:type="page"/>)
+  // ou quando encontramos o marcador de fim de capa
 
-  // Runs sem rPr — adiciona fonte e tamanho, sem negrito
-  xml = xml.replace(/<w:r>(?![\s\S]*?<w:rPr)/g,
-    `<w:r><w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`
-  );
+  // Divide o documento em "antes da quebra de página" e "depois"
+  // Quebra de página no Word: <w:br w:type="page"/> ou <w:pageBreakBefore/>
+  const PAGE_BREAK_PATTERN = /<w:br[^>]*w:type="page"[^>]*\/?>|<w:pageBreakBefore\/>/;
 
-  // Espaçamento e alinhamento nos parágrafos (pPr)
-  xml = xml.replace(/<w:pPr>([\s\S]*?)<\/w:pPr>/g, (_match, inner) => {
-    let cleaned = inner
-      .replace(/<w:spacing[^/]*\/>/g, "")
-      .replace(/<w:jc[^/]*\/>/g, "");
-    return `<w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${aliStr}"/>${cleaned}</w:pPr>`;
-  });
+  const breakIdx = xml.search(PAGE_BREAK_PATTERN);
 
-  // Parágrafos sem pPr
-  xml = xml.replace(/<w:p>(?![\s\S]*?<w:pPr)/g,
-    `<w:p><w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${aliStr}"/></w:pPr>`
-  );
+  let capa = xml;
+  let corpo = "";
 
-  return xml;
+  if (breakIdx > -1) {
+    // Encontra o fim do parágrafo que contém a quebra de página
+    const endOfPara = xml.indexOf("</w:p>", breakIdx);
+    if (endOfPara > -1) {
+      capa = xml.slice(0, endOfPara + "</w:p>".length);
+      corpo = xml.slice(endOfPara + "</w:p>".length);
+    }
+  } else {
+    // Sem quebra de página explícita — tenta separar pela primeira seção (sectPr)
+    // Nesse caso formata tudo mas preserva cabeçalho/primeira seção
+    corpo = xml;
+    capa = "";
+  }
+
+  // Aplica formatação apenas no corpo (após a capa)
+  function formatarTexto(src: string): string {
+    // Fonte e tamanho nos <w:rPr> — preserva negrito, itálico, etc.
+    src = src.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, inner) => {
+      let cleaned = inner
+        .replace(/<w:rFonts[^>]*\/?>/g, "").replace(/<\/w:rFonts>/g, "")
+        .replace(/<w:sz [^/]*\/>/g, "").replace(/<w:szCs [^/]*\/>/g, "");
+      return `<w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
+    });
+
+    // Runs sem rPr
+    src = src.replace(/<w:r>(?![\s\S]*?<w:rPr)/g,
+      `<w:r><w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`
+    );
+
+    // Espaçamento e alinhamento nos parágrafos
+    src = src.replace(/<w:pPr>([\s\S]*?)<\/w:pPr>/g, (_match, inner) => {
+      let cleaned = inner
+        .replace(/<w:spacing[^/]*\/>/g, "")
+        .replace(/<w:jc[^/]*\/>/g, "");
+      return `<w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${aliStr}"/>${cleaned}</w:pPr>`;
+    });
+
+    // Parágrafos sem pPr
+    src = src.replace(/<w:p>(?![\s\S]*?<w:pPr)/g,
+      `<w:p><w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${aliStr}"/></w:pPr>`
+    );
+
+    return src;
+  }
+
+  // Capa intacta + corpo formatado
+  return capa + formatarTexto(corpo);
 }
 
-// Patch styles.xml — fonte e tamanho apenas, PRESERVA negrito dos estilos
 function patchStylesXml(xml: string, tipo: TipoDocumento): string {
-  const regra = REGRAS_FORMATACAO[tipo];
-  const { fonte, tamanho } = regra.corpo;
-
+  const { fonte, tamanho } = REGRAS_FORMATACAO[tipo].corpo;
   xml = xml.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, inner) => {
     let cleaned = inner
       .replace(/<w:rFonts[^>]*\/?>/g, "").replace(/<\/w:rFonts>/g, "")
       .replace(/<w:sz [^/]*\/>/g, "").replace(/<w:szCs [^/]*\/>/g, "");
-    // Preserva w:b e demais tags de ênfase do estilo original
     return `<w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
   });
-
   return xml;
 }
 
-// Patch margens
 function patchMargens(xml: string, tipo: TipoDocumento): string {
   const { superior, inferior, esquerda, direita } = REGRAS_FORMATACAO[tipo].margens;
   return xml.replace(
@@ -117,7 +138,6 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="${outName}"`,
-        "X-Tipo-Documento": regra.nome,
       },
     });
   } catch (err: any) {
