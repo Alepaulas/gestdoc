@@ -6,39 +6,27 @@ import { REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
 import { registrarAuditoria } from "@/lib/auditoria";
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-const WPC_NS  = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-
-function w(tag: string) { return `{${WORD_NS}}${tag}`; }
-
-// Converte twips para string (usado nas margens do Word)
 function twips(val: number) { return String(val); }
 
-// Aplica formatação de corpo em um <w:rPr>
-function buildRPr(fonte: string, tamanho: number, negrito: boolean): string {
-  const b = negrito ? "<w:b/>" : "";
-  return `<w:rPr>${b}<w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`;
-}
-
-// Patch document.xml — aplica regras de corpo e parágrafo
+// Patch document.xml — aplica fonte, tamanho, espaçamento e alinhamento
+// MAS PRESERVA negrito, itálico e outros atributos de ênfase originais
 function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
   const regra = REGRAS_FORMATACAO[tipo];
-  const { fonte, tamanho, negrito, espacamentoLinha, alinhamento } = regra.corpo;
-
+  const { fonte, tamanho, espacamentoLinha, alinhamento } = regra.corpo;
   const aliStr = alinhamento === "both" ? "both" : alinhamento;
 
-  // Aplica em todos os <w:rPr> (runs)
-  xml = xml.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, _inner) => {
-    let cleaned = _inner
-      .replace(/<w:b[^/]*\/>/g, "").replace(/<w:b\s*><\/w:b>/g, "")
+  // Aplica fonte e tamanho nos <w:rPr> — PRESERVA <w:b/>, <w:i/>, <w:u/> e outros
+  xml = xml.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, inner) => {
+    // Remove só fonte e tamanho antigos — NÃO toca em w:b, w:i, w:u, w:color etc.
+    let cleaned = inner
       .replace(/<w:rFonts[^>]*\/?>/g, "").replace(/<\/w:rFonts>/g, "")
       .replace(/<w:sz [^/]*\/>/g, "").replace(/<w:szCs [^/]*\/>/g, "");
-    const bTag = negrito ? "<w:b/>" : "";
-    return `<w:rPr>${bTag}<w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
+    return `<w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
   });
 
-  // Runs sem rPr
+  // Runs sem rPr — adiciona fonte e tamanho, sem negrito
   xml = xml.replace(/<w:r>(?![\s\S]*?<w:rPr)/g,
-    `<w:r><w:rPr>${negrito ? "<w:b/>" : ""}<w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`
+    `<w:r><w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`
   );
 
   // Espaçamento e alinhamento nos parágrafos (pPr)
@@ -57,24 +45,23 @@ function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
   return xml;
 }
 
-// Patch styles.xml
+// Patch styles.xml — fonte e tamanho apenas, PRESERVA negrito dos estilos
 function patchStylesXml(xml: string, tipo: TipoDocumento): string {
   const regra = REGRAS_FORMATACAO[tipo];
-  const { fonte, tamanho, negrito } = regra.corpo;
+  const { fonte, tamanho } = regra.corpo;
 
   xml = xml.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, inner) => {
     let cleaned = inner
-      .replace(/<w:b[^/]*\/>/g, "").replace(/<w:b\s*><\/w:b>/g, "")
       .replace(/<w:rFonts[^>]*\/?>/g, "").replace(/<\/w:rFonts>/g, "")
       .replace(/<w:sz [^/]*\/>/g, "").replace(/<w:szCs [^/]*\/>/g, "");
-    const bTag = negrito ? "<w:b/>" : "";
-    return `<w:rPr>${bTag}<w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
+    // Preserva w:b e demais tags de ênfase do estilo original
+    return `<w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/>${cleaned}</w:rPr>`;
   });
 
   return xml;
 }
 
-// Patch margens em word/settings.xml ou word/document.xml (sectPr)
+// Patch margens
 function patchMargens(xml: string, tipo: TipoDocumento): string {
   const { superior, inferior, esquerda, direita } = REGRAS_FORMATACAO[tipo].margens;
   return xml.replace(
@@ -119,7 +106,6 @@ export async function POST(req: NextRequest) {
     const regra = REGRAS_FORMATACAO[tipo];
     const outName = file.name.replace(/(\.\w+)$/, `_${tipo}_formatado$1`);
 
-    // Registra auditoria
     const userId = (session.user as any).id as string;
     await registrarAuditoria({
       userId,
