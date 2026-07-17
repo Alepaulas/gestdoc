@@ -60,7 +60,7 @@ export function SinoNotificacoes() {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-11 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50">
+        <div className="absolute left-full bottom-0 ml-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Notificações</h3>
             <button onClick={() => setAberto(false)} className="text-slate-400 hover:text-slate-600">
