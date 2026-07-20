@@ -1,253 +1,233 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Search, Package, CheckCircle, AlertTriangle, XCircle, ExternalLink } from "lucide-react";
-import { UNIDADES } from "@/lib/unidades";
+import { useEffect, useState, useCallback } from "react";
+import { Search, Package, RefreshCw, Download, ExternalLink, CheckCircle, AlertTriangle, XCircle, MessageSquarePlus, X, Save } from "lucide-react";
 
-type Doc = {
-  _linha: number;
-  id: string;
-  tipoDocumento: string;
-  nivel: string;
-  codigo: string;
-  titulo: string;
-  unidade: string;
-  setor: string;
-  statusDemanda: string;
-  statusDocumento: string;
-  vigencia: string;
-  dataPadronizacao: string;
-  dataProximaRevisao: string;
-  versao: string;
-  revisao: string;
-  dataPublicacao: string;
-  diasVencimento: number | null;
-  statusValidade: string;
-  elaborador: string;
-  aprovador: string;
-  linkEmail: string;
+const ST: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+  VIGENTE:  { label:"Vigente",  bg:"#f0fdf4", text:"#15803d", dot:"#16a34a" },
+  VENCENDO: { label:"Vencendo", bg:"#fffbeb", text:"#92400e", dot:"#d97706" },
+  VENCIDO:  { label:"Vencido",  bg:"#fef2f2", text:"#991b1b", dot:"#dc2626" },
 };
 
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
-  VIGENTE:  { label: "Vigente",  bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200", icon: CheckCircle  },
-  VENCENDO: { label: "Vencendo", bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200", icon: AlertTriangle },
-  VENCIDO:  { label: "Vencido",  bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200",   icon: XCircle      },
-};
+export default function Inventario() {
+  const [docs, setDocs]         = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
+  const [search, setSearch]     = useState("");
+  const [setorFiltro, setSetorFiltro] = useState("");
+  const [statusFiltro, setStatusFiltro] = useState("");
+  const [setores, setSetores]   = useState<string[]>([]);
+  // Observações locais (salvas no localStorage por linha)
+  const [obsMap, setObsMap]     = useState<Record<string, string>>({});
+  const [editandoObs, setEditandoObs] = useState<string | null>(null);
+  const [obsTemp, setObsTemp]   = useState("");
 
-const NIVEL_COLOR: Record<string, string> = {
-  "Nível I":   "bg-purple-100 text-purple-700",
-  "Nível II":  "bg-blue-100 text-blue-700",
-  "Nível III": "bg-slate-100 text-slate-600",
-};
-
-export default function InventarioPage() {
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [busca, setBusca] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [unidadeAtual, setUnidadeAtual] = useState("");
-  const [unidadeFiltro, setUnidadeFiltro] = useState("");
-  const [docSelecionado, setDocSelecionado] = useState<Doc | null>(null);
-
-  async function load() {
-    setLoading(true);
-    setError("");
+  // Carrega obs salvas
+  useEffect(() => {
     try {
-      const params = new URLSearchParams();
-      if (busca)         params.set("busca", busca);
-      if (filtroStatus)  params.set("status", filtroStatus);
-      if (unidadeFiltro) params.set("unidade", unidadeFiltro);
-      const res = await fetch(`/api/inventario?${params}`);
-      const j = await res.json();
-      if (j.error) setError(j.error);
-      else {
-        setDocs(j.docs ?? []);
-        setIsAdmin(j.isAdmin ?? false);
-        setUnidadeAtual(j.unidadeFiltro ?? "");
-      }
-    } catch { setError("Erro ao carregar inventário."); }
-    finally { setLoading(false); }
+      const saved = localStorage.getItem("inventario_obs");
+      if (saved) setObsMap(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const fetchDocs = useCallback(async () => {
+    setLoading(true); setError("");
+    const p = new URLSearchParams();
+    if (search) p.set("search", search);
+    if (statusFiltro) p.set("status", statusFiltro);
+    const res = await fetch(`/api/lista-mestra?${p}`);
+    const data = await res.json();
+    if (data.error) { setError(data.error); setLoading(false); return; }
+    const todos = data.docs ?? [];
+    // Extrai setores únicos
+    const sets = [...new Set(todos.map((d: any) => d.localizacao).filter(Boolean))].sort() as string[];
+    setSetores(sets);
+    setDocs(todos);
+    setLoading(false);
+  }, [search, statusFiltro]);
+
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
+
+  const filtrados = setorFiltro
+    ? docs.filter(d => d.localizacao === setorFiltro)
+    : docs;
+
+  const total    = filtrados.length;
+  const vigentes = filtrados.filter(d => d.status === "VIGENTE").length;
+  const vencendo = filtrados.filter(d => d.status === "VENCENDO").length;
+  const vencidos = filtrados.filter(d => d.status === "VENCIDO").length;
+
+  function abrirObs(key: string) {
+    setObsTemp(obsMap[key] ?? "");
+    setEditandoObs(key);
   }
 
-  useEffect(() => { load(); }, [busca, filtroStatus, unidadeFiltro]);
+  function salvarObs(key: string) {
+    const novo = { ...obsMap, [key]: obsTemp };
+    setObsMap(novo);
+    try { localStorage.setItem("inventario_obs", JSON.stringify(novo)); } catch {}
+    setEditandoObs(null);
+  }
 
-  const totais = {
-    total:    docs.length,
-    vigente:  docs.filter(d => d.statusValidade === "VIGENTE").length,
-    vencendo: docs.filter(d => d.statusValidade === "VENCENDO").length,
-    vencido:  docs.filter(d => d.statusValidade === "VENCIDO").length,
-  };
+  function exportarCSV() {
+    const header = ["CÓDIGO","DOCUMENTO","TIPO","LOCALIZAÇÃO","UNIDADE","ÁREA","RESPONSÁVEL","PADRONIZAÇÃO","REVISÃO","STATUS","LINK","OBSERVAÇÃO"];
+    const rows = filtrados.map(d => [
+      d.codigo, d.titulo, d.tipo, d.localizacao, d.unidade, d.area,
+      d.nome, d.dataPadronizacao, d.dataRevisao, d.status, d.linkEditavel,
+      obsMap[d.codigo] ?? "",
+    ]);
+    const csv = [header,...rows].map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=`inventario_${new Date().toISOString().split("T")[0]}.csv`; a.click();
+  }
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Package className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Inventário de Documentos</h1>
-            <p className="text-slate-500 text-xs mt-0.5">
-              {unidadeAtual
-                ? `Exibindo documentos da área: ${unidadeAtual}`
-                : "Todos os documentos"}
-            </p>
-          </div>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Package className="w-5 h-5 text-blue-700"/>Inventário de Documentos
+          </h1>
+          <p className="text-slate-500 text-sm mt-0.5">Fonte: planilha LISTA_MESTRE · filtro por setor · observações editáveis</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={fetchDocs} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+            <RefreshCw className="w-3.5 h-3.5"/>Atualizar
+          </button>
+          <button onClick={exportarCSV} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700">
+            <Download className="w-3.5 h-3.5"/>Exportar CSV
+          </button>
         </div>
       </div>
 
-      {/* Cards resumo */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* KPIs */}
+      <div className="grid grid-cols-4 gap-4 mb-5">
         {[
-          { label: "Total",     value: totais.total,    color: "text-slate-700",  bg: "bg-slate-50  border-slate-200"  },
-          { label: "Vigentes",  value: totais.vigente,  color: "text-green-700",  bg: "bg-green-50  border-green-200"  },
-          { label: "Vencendo",  value: totais.vencendo, color: "text-amber-700",  bg: "bg-amber-50  border-amber-200"  },
-          { label: "Vencidos",  value: totais.vencido,  color: "text-red-700",    bg: "bg-red-50    border-red-200"    },
-        ].map(c => (
-          <div key={c.label} className={`${c.bg} border rounded-xl p-4 text-center`}>
-            <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
-            <p className="text-xs text-slate-500 mt-1">{c.label}</p>
+          { label:"Total",   value:total,    color:"text-blue-700",    bg:"bg-blue-50" },
+          { label:"Vigentes",value:vigentes, color:"text-emerald-700", bg:"bg-emerald-50" },
+          { label:"Vencendo",value:vencendo, color:"text-amber-700",   bg:"bg-amber-50" },
+          { label:"Vencidos",value:vencidos, color:"text-red-700",     bg:"bg-red-50" },
+        ].map(k=>(
+          <div key={k.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{k.label}</p>
           </div>
         ))}
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-3 mb-5">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input value={busca} onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar por título, código ou tipo..."
-            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4 flex flex-wrap gap-3">
+        <div className="flex-1 min-w-[200px] relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="Buscar por título, código, responsável..."
+            className="w-full pl-8 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
-        <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+        <select value={setorFiltro} onChange={e=>setSetorFiltro(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]">
+          <option value="">Todos os setores</option>
+          {setores.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={statusFiltro} onChange={e=>setStatusFiltro(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos os status</option>
           <option value="VIGENTE">Vigente</option>
           <option value="VENCENDO">Vencendo</option>
           <option value="VENCIDO">Vencido</option>
         </select>
-        {isAdmin && (
-          <select value={unidadeFiltro} onChange={e => setUnidadeFiltro(e.target.value)}
-            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-52">
-            <option value="">Todas as unidades</option>
-            {UNIDADES.map(u => (
-              <option key={u.sigla} value={u.sigla}>{u.sigla} — {u.nome}</option>
-            ))}
-          </select>
-        )}
       </div>
 
-      {error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-700">
-          ⚠️ {error.includes("Token") ? "Faça logout e login novamente para reconectar o Google." : error}
-        </div>
-      )}
-
-      {/* Lista de documentos */}
-      {loading ? (
-        <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
-      ) : docs.length === 0 ? (
-        <div className="text-center py-16">
-          <Package className="w-10 h-10 text-slate-300 mx-auto mb-3"/>
-          <p className="text-slate-400 text-sm">Nenhum documento encontrado para esta área.</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {docs.map(doc => {
-            const sv = STATUS_CONFIG[doc.statusValidade] ?? STATUS_CONFIG["VIGENTE"];
-            const Icon = sv.icon;
-            return (
-              <div key={doc._linha}
-                onClick={() => setDocSelecionado(doc)}
-                className="bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-indigo-700">{doc.codigo}</span>
-                      {doc.nivel && (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${NIVEL_COLOR[doc.nivel] ?? "bg-slate-100 text-slate-500"}`}>
-                          {doc.nivel}
-                        </span>
-                      )}
-                      <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${sv.bg} ${sv.text} ${sv.border}`}>
-                        <Icon className="w-3 h-3"/> {sv.label}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-slate-800 truncate">{doc.titulo}</h3>
-                    <p className="text-xs text-slate-400 mt-1">{doc.tipoDocumento}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-slate-400">Próx. revisão</p>
-                    <p className={`text-sm font-semibold ${
-                      doc.diasVencimento !== null && doc.diasVencimento < 0 ? "text-red-600" :
-                      doc.diasVencimento !== null && doc.diasVencimento <= 60 ? "text-amber-600" : "text-slate-700"
-                    }`}>{doc.dataProximaRevisao || "—"}</p>
-                    {doc.diasVencimento !== null && (
-                      <p className="text-xs text-slate-400">{doc.diasVencimento} dias</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 mt-3 text-xs text-slate-400 border-t border-slate-100 pt-3">
-                  <span>📍 {doc.unidade} — {doc.setor}</span>
-                  <span>📅 Publicado: {doc.dataPublicacao || "—"}</span>
-                  <span>🔖 Versão {doc.versao}</span>
-                  {doc.elaborador && <span>✍️ {doc.elaborador}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Modal de detalhe */}
-      {docSelecionado && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setDocSelecionado(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <span className="font-mono text-xs font-bold text-indigo-700">{docSelecionado.codigo}</span>
-                <h2 className="text-lg font-bold text-slate-800 mt-1">{docSelecionado.titulo}</h2>
-              </div>
-              <button onClick={() => setDocSelecionado(null)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
-            </div>
-
-            <div className="space-y-3 text-sm">
-              {[
-                { label: "Tipo",             value: docSelecionado.tipoDocumento },
-                { label: "Nível",            value: docSelecionado.nivel },
-                { label: "Unidade",          value: docSelecionado.unidade },
-                { label: "Setor",            value: docSelecionado.setor },
-                { label: "Versão",           value: docSelecionado.versao },
-                { label: "Revisão",          value: docSelecionado.revisao },
-                { label: "Vigência",         value: docSelecionado.vigencia },
-                { label: "Data Publicação",  value: docSelecionado.dataPublicacao },
-                { label: "Data Padronização",value: docSelecionado.dataPadronizacao },
-                { label: "Próxima Revisão",  value: docSelecionado.dataProximaRevisao },
-                { label: "Dias p/ Vencimento", value: docSelecionado.diasVencimento !== null ? `${docSelecionado.diasVencimento} dias` : "—" },
-                { label: "Status",           value: docSelecionado.statusValidade },
-                { label: "Elaborador(es)",   value: docSelecionado.elaborador },
-                { label: "Aprovador",        value: docSelecionado.aprovador },
-              ].filter(r => r.value).map(row => (
-                <div key={row.label} className="flex justify-between gap-4 py-2 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium flex-shrink-0">{row.label}</span>
-                  <span className="text-slate-800 text-right">{row.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {docSelecionado.linkEmail && (
-              <a href={docSelecionado.linkEmail} target="_blank" rel="noopener noreferrer"
-                className="mt-4 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
-                <ExternalLink className="w-4 h-4"/> Abrir documento
-              </a>
-            )}
+      {/* Tabela */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        {error && <div className="p-6 text-center text-amber-700 text-sm">⚠️ {error}</div>}
+        {loading && !error && <div className="flex items-center justify-center h-48"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"/></div>}
+        {!loading && !error && filtrados.length === 0 && (
+          <div className="flex flex-col items-center h-48 justify-center text-slate-400">
+            <Package className="w-10 h-10 mb-2 text-slate-200"/>
+            <p className="text-sm">Nenhum documento encontrado</p>
           </div>
+        )}
+
+        {!loading && !error && filtrados.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs" style={{minWidth:"1050px"}}>
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["Código","Documento","Tipo","Setor / Localização","Unidade","Responsável","Padronização","Revisão","Status","Link","Observação"].map(h=>(
+                    <th key={h} className="text-left px-3 py-3 font-semibold text-slate-500 uppercase tracking-wider text-[10px] whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtrados.map((doc, i) => {
+                  const st = ST[doc.status] ?? ST.VIGENTE;
+                  const obsKey = doc.codigo || String(i);
+                  const obsVal = obsMap[obsKey] ?? "";
+                  const isEditingThis = editandoObs === obsKey;
+
+                  return (
+                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">{doc.codigo || "—"}</span>
+                      </td>
+                      <td className="px-3 py-3 max-w-[180px]">
+                        <p className="font-semibold text-slate-900 truncate">{doc.titulo}</p>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.tipo?.split("—")[0]?.trim() || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <p className="text-slate-700 font-medium">{doc.localizacao || "—"}</p>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.unidade || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.nome || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.dataPadronizacao || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.dataRevisao || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{background:st.bg,color:st.text}}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{background:st.dot}}/>
+                          {st.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {doc.linkEditavel
+                          ? <a href={doc.linkEditavel} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-medium hover:bg-blue-100">
+                              <ExternalLink className="w-2.5 h-2.5"/>Abrir
+                            </a>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-3 min-w-[160px]">
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-1.5">
+                            <input autoFocus value={obsTemp} onChange={e=>setObsTemp(e.target.value)}
+                              onKeyDown={e=>{ if(e.key==="Enter") salvarObs(obsKey); if(e.key==="Escape") setEditandoObs(null); }}
+                              className="flex-1 border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Digite a observação..."/>
+                            <button onClick={()=>salvarObs(obsKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"><Save className="w-3.5 h-3.5"/></button>
+                            <button onClick={()=>setEditandoObs(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors"><X className="w-3.5 h-3.5"/></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 group cursor-pointer" onClick={()=>abrirObs(obsKey)}>
+                            {obsVal
+                              ? <span className="text-slate-700 truncate max-w-[120px]">{obsVal}</span>
+                              : <span className="text-slate-300 italic">Adicionar obs...</span>}
+                            <MessageSquarePlus className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 flex-shrink-0 transition-colors"/>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+          <p className="text-xs text-slate-500">{total} documentos{setorFiltro ? ` · Setor: ${setorFiltro}` : ""} · Clique em "Adicionar obs..." para incluir observações</p>
+          <button onClick={exportarCSV} className="text-xs text-emerald-700 hover:underline flex items-center gap-1">
+            <Download className="w-3 h-3"/>Exportar CSV
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
