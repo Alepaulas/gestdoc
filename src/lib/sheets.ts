@@ -389,3 +389,83 @@ export async function buscarUsuarioPorEmail(
   const usuarios = await lerUsuarios(accessToken, refreshToken);
   return usuarios.find(u => u.email === email.toLowerCase()) ?? null;
 }
+
+// ─── SOLICITACOES sheet helpers ──────────────────────────────────────────────
+
+const SOL_SHEET = "SOLICITACOES";
+const SPREADSHEET_ID_SOL = "1AhfvYOvqm8r1ouSsPCZA_nxvHSOclCALYJm-mwf4afo";
+
+// Mapa de colunas da aba SOLICITACOES (A=0)
+export const SOL_COL: Record<string, number> = {
+  ASSUNTO: 0, REMETENTE: 1, DATA_ENVIO: 2, DESTINATARIO: 3, IMPORTADO_EM: 4,
+  STATUS: 5, RESPONSAVEL: 6, DATA_VALIDACAO_H: 7, DATA_PADRONIZACAO_I: 8,
+  DATA_PUBLICACAO_J: 9, EMAIL_SOLICITANTE: 10,
+  NOME_PADRONIZADOR: 11, DATA_ENVIO_VALIDACAO: 12, DATA_VALIDACAO_N: 13,
+  TEMPO_VALIDACAO: 14, CONCLUIDA_POR: 15, DATA_ENVIO_PADRONIZACAO: 16,
+  DATA_PADRONIZACAO_R: 17, TEMPO_PADRONIZACAO: 18, DATA_PUBLICACAO_T: 19,
+  TEMPO_TOTAL: 20, PRAZO_MAXIMO: 21, CONFORMIDADE: 22,
+  CRIADO_EM: 23, CRIADO_POR: 24, ATUALIZADO_EM: 25, ATUALIZADO_POR: 26,
+};
+
+// Calcula dias úteis entre duas datas (pula sábado e domingo)
+export function calcDiasUteis(inicio: string, fim: string): number {
+  const parseData = (s: string) => {
+    const p = s.split("/");
+    return p.length === 3 ? new Date(`${p[2]}-${p[1]}-${p[0]}`) : new Date(s);
+  };
+  const d1 = parseData(inicio);
+  const d2 = parseData(fim);
+  let count = 0;
+  const cur = new Date(d1);
+  while (cur <= d2) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+// Atualiza células específicas de uma linha na aba SOLICITACOES
+export async function atualizarSolicitacao(
+  accessToken: string,
+  refreshToken: string | undefined,
+  linha: number, // linha real na planilha (1-indexed, já inclui header)
+  campos: Record<string, string>
+) {
+  const sheets = getSheetsClient(accessToken, refreshToken);
+
+  // Lê a linha atual
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID_SOL,
+    range: `${SOL_SHEET}!A${linha}:AA${linha}`,
+  });
+  const row = res.data.values?.[0] ?? Array(27).fill("");
+  while (row.length < 27) row.push("");
+
+  // Aplica os campos editados
+  Object.entries(campos).forEach(([col, val]) => {
+    const idx = SOL_COL[col];
+    if (idx !== undefined) row[idx] = val;
+  });
+
+  // Recalcula tempo de padronização e conformidade automaticamente
+  const dataValidacao = row[SOL_COL.DATA_VALIDACAO_N] || row[SOL_COL.DATA_VALIDACAO_H];
+  const dataPadronizacao = row[SOL_COL.DATA_PADRONIZACAO_R] || row[SOL_COL.DATA_PADRONIZACAO_I];
+
+  if (dataValidacao && dataPadronizacao) {
+    const diasUteis = calcDiasUteis(dataValidacao, dataPadronizacao);
+    row[SOL_COL.TEMPO_PADRONIZACAO] = String(diasUteis);
+    row[SOL_COL.PRAZO_MAXIMO] = "10";
+    row[SOL_COL.CONFORMIDADE] = diasUteis <= 10 ? "DENTRO DO PRAZO" : "FORA DO PRAZO";
+  }
+
+  // Atualiza data de atualização
+  row[SOL_COL.ATUALIZADO_EM] = new Date().toLocaleString("pt-BR");
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID_SOL,
+    range: `${SOL_SHEET}!A${linha}:AA${linha}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [row] },
+  });
+}
