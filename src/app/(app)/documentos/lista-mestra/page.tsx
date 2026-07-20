@@ -185,7 +185,7 @@ export default function ListaMestraPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {["ID","Código","Título","Unidade","Setor","Status Demanda","Validade","Dias","Próx. Revisão","Versão","Publicado em"].map(h => (
+                  {["ID","Código","Título","Unidade","Setor","Status Demanda","Status do Documento","Dias","Próx. Revisão","Versão","Publicado em"].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
