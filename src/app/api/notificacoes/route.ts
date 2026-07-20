@@ -7,14 +7,8 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const role = (session.user as any).role as string;
   const papel = (session.user as any).papelFluxo as string;
-  const role  = (session.user as any).role as string;
-
-  // Só UNIDADE, ADMIN e GESTDOC recebem notificações de vencimento
-  const papeisPermitidos = ["UNIDADE", "ADMIN", "GESTDOC"];
-  if (!papeisPermitidos.includes(papel) && role !== "ADMIN") {
-    return NextResponse.json({ notificacoes: [], total: 0 });
-  }
 
   const accessToken  = (session as any).accessToken;
   const refreshToken = (session as any).refreshToken;
@@ -22,34 +16,37 @@ export async function GET(req: NextRequest) {
 
   try {
     const docs = await lerPlanilha(accessToken, refreshToken);
-    const unidade = (session.user as any).unidade as string ?? "";
+    const hoje = new Date();
 
-    // Filtra documentos vencendo (≤60 dias) ou vencidos
-    let alertas = docs.filter(d =>
-      d.diasVencimento !== null && d.diasVencimento <= 60
-    );
-
-    // UNIDADE só vê os da sua unidade
-    if (papel === "UNIDADE" && unidade) {
-      alertas = alertas.filter(d =>
-        d.unidade?.toUpperCase() === unidade.toUpperCase()
-      );
-    }
-
-    const notificacoes = alertas
+    // Calcula dias restantes e filtra vencidos + vencendo (até 60 dias)
+    const alertas = docs
+      .map(d => {
+        let diasVencimento: number | null = null;
+        if (d.dataRevisao) {
+          const partes = d.dataRevisao.split("/");
+          if (partes.length === 3) {
+            const rev = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+            diasVencimento = Math.ceil((rev.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+          }
+        }
+        return { ...d, diasVencimento };
+      })
+      .filter(d => d.diasVencimento !== null && d.diasVencimento <= 60)
       .sort((a, b) => (a.diasVencimento ?? 0) - (b.diasVencimento ?? 0))
-      .slice(0, 20) // máximo 20
-      .map(d => ({
-        codigo:            d.codigo,
-        titulo:            d.titulo,
-        diasVencimento:    d.diasVencimento,
-        dataProximaRevisao: d.dataProximaRevisao,
-        unidade:           d.unidade,
-        status:            d.statusValidade,
-      }));
+      .slice(0, 30);
+
+    const notificacoes = alertas.map(d => ({
+      codigo: d.codigo,
+      titulo: d.titulo,
+      diasVencimento: d.diasVencimento,
+      dataProximaRevisao: d.dataRevisao,
+      unidade: d.unidade,
+      status: d.status,
+    }));
 
     return NextResponse.json({ notificacoes, total: notificacoes.length });
-  } catch {
+  } catch (e) {
+    console.error(e);
     return NextResponse.json({ notificacoes: [], total: 0 });
   }
 }
