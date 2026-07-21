@@ -299,7 +299,7 @@ export default function Solicitacoes() {
                     <>
                       <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                         {COLS_TABELA.map(col=>(
-                          <td key={col} className="px-3 py-3 whitespace-nowrap max-w-[180px]">
+                          <td key={col} className="px-3 py-3" style={{minWidth: col==="ASSUNTO"||col==="DESCONFORMIDADES"?"160px":col==="E-MAIL DO SOLICITANTE"?"180px":"110px", maxWidth:"200px"}}>
                             {col==="ASSUNTO"
                               ? <span className="font-semibold text-slate-900 truncate block max-w-[160px]">{sol[col]||"—"}</span>
                               : col==="E-MAIL DO SOLICITANTE" && sol[col]?.includes("@")
