@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Search, Package, RefreshCw, Download, ExternalLink, CheckCircle, AlertTriangle, XCircle, MessageSquarePlus, X, Save } from "lucide-react";
+import { Search, Package, RefreshCw, Download, ExternalLink, MessageSquarePlus, X, Save } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 const ST: Record<string, { label: string; bg: string; text: string; dot: string }> = {
   VIGENTE:  { label:"Vigente",  bg:"#f0fdf4", text:"#15803d", dot:"#16a34a" },
@@ -8,23 +9,28 @@ const ST: Record<string, { label: string; bg: string; text: string; dot: string 
   VENCIDO:  { label:"Vencido",  bg:"#fef2f2", text:"#991b1b", dot:"#dc2626" },
 };
 
-export default function Inventario() {
-  const [docs, setDocs]         = useState<any[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState("");
-  const [search, setSearch]     = useState("");
-  const [setorFiltro, setSetorFiltro] = useState("");
-  const [statusFiltro, setStatusFiltro] = useState("");
-  const [setores, setSetores]   = useState<string[]>([]);
-  // Observações locais (salvas no localStorage por linha)
-  const [obsMap, setObsMap]     = useState<Record<string, string>>({});
-  const [editandoObs, setEditandoObs] = useState<string | null>(null);
-  const [obsTemp, setObsTemp]   = useState("");
+interface ObsEntry {
+  texto: string;
+  autor: string;
+  data: string;
+}
 
-  // Carrega obs salvas
+export default function Inventario() {
+  const { data: session } = useSession();
+  const [docs, setDocs]           = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [search, setSearch]       = useState("");
+  const [setorFiltro, setSetor]   = useState("");
+  const [statusFiltro, setStatus] = useState("");
+  const [setores, setSetores]     = useState<string[]>([]);
+  const [obsMap, setObsMap]       = useState<Record<string, ObsEntry>>({});
+  const [editandoObs, setEditandoObs] = useState<string | null>(null);
+  const [obsTemp, setObsTemp]     = useState("");
+
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("inventario_obs");
+      const saved = localStorage.getItem("inventario_obs_v2");
       if (saved) setObsMap(JSON.parse(saved));
     } catch {}
   }, []);
@@ -38,7 +44,6 @@ export default function Inventario() {
     const data = await res.json();
     if (data.error) { setError(data.error); setLoading(false); return; }
     const todos = data.docs ?? [];
-    // Extrai setores únicos
     const sets = [...new Set(todos.map((d: any) => d.localizacao).filter(Boolean))].sort() as string[];
     setSetores(sets);
     setDocs(todos);
@@ -47,34 +52,33 @@ export default function Inventario() {
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
-  const filtrados = setorFiltro
-    ? docs.filter(d => d.localizacao === setorFiltro)
-    : docs;
-
+  const filtrados = setorFiltro ? docs.filter(d => d.localizacao === setorFiltro) : docs;
   const total    = filtrados.length;
   const vigentes = filtrados.filter(d => d.status === "VIGENTE").length;
   const vencendo = filtrados.filter(d => d.status === "VENCENDO").length;
   const vencidos = filtrados.filter(d => d.status === "VENCIDO").length;
 
   function abrirObs(key: string) {
-    setObsTemp(obsMap[key] ?? "");
+    setObsTemp(obsMap[key]?.texto ?? "");
     setEditandoObs(key);
   }
 
   function salvarObs(key: string) {
-    const novo = { ...obsMap, [key]: obsTemp };
+    const autor = session?.user?.name ?? "Usuário";
+    const agora = new Date().toLocaleString("pt-BR");
+    const entry: ObsEntry = { texto: obsTemp, autor, data: agora };
+    const novo = { ...obsMap, [key]: entry };
     setObsMap(novo);
-    try { localStorage.setItem("inventario_obs", JSON.stringify(novo)); } catch {}
+    try { localStorage.setItem("inventario_obs_v2", JSON.stringify(novo)); } catch {}
     setEditandoObs(null);
   }
 
   function exportarCSV() {
-    const header = ["CÓDIGO","DOCUMENTO","TIPO","LOCALIZAÇÃO","UNIDADE","ÁREA","RESPONSÁVEL","PADRONIZAÇÃO","REVISÃO","STATUS","LINK","OBSERVAÇÃO"];
-    const rows = filtrados.map(d => [
-      d.codigo, d.titulo, d.tipo, d.localizacao, d.unidade, d.area,
-      d.nome, d.dataPadronizacao, d.dataRevisao, d.status, d.linkEditavel,
-      obsMap[d.codigo] ?? "",
-    ]);
+    const header = ["CÓDIGO","DOCUMENTO","TIPO","LOCALIZAÇÃO","UNIDADE","RESPONSÁVEL","PADRONIZAÇÃO","REVISÃO","STATUS","LINK","OBSERVAÇÃO","INCLUÍDO POR","DATA DA OBSERVAÇÃO"];
+    const rows = filtrados.map(d => {
+      const obs = obsMap[d.codigo || String(d._linha)];
+      return [d.codigo,d.titulo,d.tipo,d.localizacao,d.unidade,d.nome,d.dataPadronizacao,d.dataRevisao,d.status,d.linkEditavel,obs?.texto??"",obs?.autor??"",obs?.data??""];
+    });
     const csv = [header,...rows].map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(";")).join("\n");
     const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url = URL.createObjectURL(blob);
@@ -88,7 +92,7 @@ export default function Inventario() {
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Package className="w-5 h-5 text-blue-700"/>Inventário de Documentos
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">Fonte: planilha LISTA_MESTRE · filtro por setor · observações editáveis</p>
+          <p className="text-slate-500 text-sm mt-0.5">Fonte: planilha LISTA_MESTRE · observações com autor e data</p>
         </div>
         <div className="flex gap-2">
           <button onClick={fetchDocs} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
@@ -103,10 +107,10 @@ export default function Inventario() {
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-4 mb-5">
         {[
-          { label:"Total",   value:total,    color:"text-blue-700",    bg:"bg-blue-50" },
-          { label:"Vigentes",value:vigentes, color:"text-emerald-700", bg:"bg-emerald-50" },
-          { label:"Vencendo",value:vencendo, color:"text-amber-700",   bg:"bg-amber-50" },
-          { label:"Vencidos",value:vencidos, color:"text-red-700",     bg:"bg-red-50" },
+          {label:"Total",   value:total,    color:"text-blue-700",    bg:"bg-blue-50"},
+          {label:"Vigentes",value:vigentes, color:"text-emerald-700", bg:"bg-emerald-50"},
+          {label:"Vencendo",value:vencendo, color:"text-amber-700",   bg:"bg-amber-50"},
+          {label:"Vencidos",value:vencidos, color:"text-red-700",     bg:"bg-red-50"},
         ].map(k=>(
           <div key={k.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
             <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
@@ -123,12 +127,12 @@ export default function Inventario() {
             placeholder="Buscar por título, código, responsável..."
             className="w-full pl-8 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
-        <select value={setorFiltro} onChange={e=>setSetorFiltro(e.target.value)}
+        <select value={setorFiltro} onChange={e=>setSetor(e.target.value)}
           className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]">
           <option value="">Todos os setores</option>
           {setores.map(s=><option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={statusFiltro} onChange={e=>setStatusFiltro(e.target.value)}
+        <select value={statusFiltro} onChange={e=>setStatus(e.target.value)}
           className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos os status</option>
           <option value="VIGENTE">Vigente</option>
@@ -147,13 +151,12 @@ export default function Inventario() {
             <p className="text-sm">Nenhum documento encontrado</p>
           </div>
         )}
-
         {!loading && !error && filtrados.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{minWidth:"1050px"}}>
+            <table className="w-full text-xs" style={{minWidth:"1100px"}}>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {["Código","Documento","Tipo","Setor / Localização","Unidade","Responsável","Padronização","Revisão","Status","Link","Observação"].map(h=>(
+                  {["Código","Documento","Tipo","Setor","Unidade","Responsável","Padronização","Revisão","Status","Link","Observação","Incluído por","Data obs."].map(h=>(
                     <th key={h} className="text-left px-3 py-3 font-semibold text-slate-500 uppercase tracking-wider text-[10px] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -162,25 +165,23 @@ export default function Inventario() {
                 {filtrados.map((doc, i) => {
                   const st = ST[doc.status] ?? ST.VIGENTE;
                   const obsKey = doc.codigo || String(i);
-                  const obsVal = obsMap[obsKey] ?? "";
+                  const obsEntry = obsMap[obsKey];
                   const isEditingThis = editandoObs === obsKey;
 
                   return (
                     <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-3 py-3 whitespace-nowrap">
-                        <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">{doc.codigo || "—"}</span>
+                        <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">{doc.codigo||"—"}</span>
                       </td>
                       <td className="px-3 py-3 max-w-[180px]">
                         <p className="font-semibold text-slate-900 truncate">{doc.titulo}</p>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.tipo?.split("—")[0]?.trim() || "—"}</td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <p className="text-slate-700 font-medium">{doc.localizacao || "—"}</p>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.unidade || "—"}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.nome || "—"}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.dataPadronizacao || "—"}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.dataRevisao || "—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.tipo?.split("—")[0]?.trim()||"—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-700 font-medium">{doc.localizacao||"—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.unidade||"—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.nome||"—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.dataPadronizacao||"—"}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.dataRevisao||"—"}</td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{background:st.bg,color:st.text}}>
                           <span className="w-1.5 h-1.5 rounded-full" style={{background:st.dot}}/>
@@ -195,6 +196,8 @@ export default function Inventario() {
                             </a>
                           : <span className="text-slate-300">—</span>}
                       </td>
+
+                      {/* Observação editável */}
                       <td className="px-3 py-3 min-w-[160px]">
                         {isEditingThis ? (
                           <div className="flex items-center gap-1.5">
@@ -202,17 +205,31 @@ export default function Inventario() {
                               onKeyDown={e=>{ if(e.key==="Enter") salvarObs(obsKey); if(e.key==="Escape") setEditandoObs(null); }}
                               className="flex-1 border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                               placeholder="Digite a observação..."/>
-                            <button onClick={()=>salvarObs(obsKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"><Save className="w-3.5 h-3.5"/></button>
-                            <button onClick={()=>setEditandoObs(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors"><X className="w-3.5 h-3.5"/></button>
+                            <button onClick={()=>salvarObs(obsKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Save className="w-3.5 h-3.5"/></button>
+                            <button onClick={()=>setEditandoObs(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3.5 h-3.5"/></button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5 group cursor-pointer" onClick={()=>abrirObs(obsKey)}>
-                            {obsVal
-                              ? <span className="text-slate-700 truncate max-w-[120px]">{obsVal}</span>
+                            {obsEntry?.texto
+                              ? <span className="text-slate-700 truncate max-w-[120px]">{obsEntry.texto}</span>
                               : <span className="text-slate-300 italic">Adicionar obs...</span>}
                             <MessageSquarePlus className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 flex-shrink-0 transition-colors"/>
                           </div>
                         )}
+                      </td>
+
+                      {/* Incluído por */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {obsEntry?.autor
+                          ? <span className="text-slate-600 text-[11px]">{obsEntry.autor}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
+
+                      {/* Data da obs */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {obsEntry?.data
+                          ? <span className="text-slate-500 text-[10px]">{obsEntry.data}</span>
+                          : <span className="text-slate-300">—</span>}
                       </td>
                     </tr>
                   );
@@ -222,7 +239,7 @@ export default function Inventario() {
           </div>
         )}
         <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
-          <p className="text-xs text-slate-500">{total} documentos{setorFiltro ? ` · Setor: ${setorFiltro}` : ""} · Clique em "Adicionar obs..." para incluir observações</p>
+          <p className="text-xs text-slate-500">{total} documentos{setorFiltro?` · ${setorFiltro}`:""} · Clique em "Adicionar obs..." para incluir observações</p>
           <button onClick={exportarCSV} className="text-xs text-emerald-700 hover:underline flex items-center gap-1">
             <Download className="w-3 h-3"/>Exportar CSV
           </button>
