@@ -5,24 +5,44 @@ const SHEET_NAME = "LISTA_MESTRE";
 
 // Estrutura completa da Lista Mestra
 const COLS = {
-  // Colunas conforme planilha LISTA_MESTRE real
-  NOME:                     0,  // A - NOME
-  TITULO:                   1,  // B - DOCUMENTO
-  LINK_EDITAVEL:            2,  // C - LINK DOCUMENTO (editável)
-  CODIGO:                   3,  // D - CÓDIGO
-  TIPO_DOCUMENTO:           4,  // E - TIPO
-  LOCALIZACAO:              5,  // F - LOCALIZAÇÃO
-  UNIDADE:                  6,  // G - UNIDADE
-  STATUS_DEMANDA:           7,  // H - STATUS DA DEMANDA (VIGENTE/VENCENDO/VENCIDO)
-  AREA:                     8,  // I - ÁREA (ou STATUS DO DOCUMENTO)
-  OBS:                      9,  // J - OBS
-  DATA_PADRONIZACAO:        10, // K - DATA DE PADRONIZAÇÃO
-  DATA_PROXIMA_REVISAO:     11, // L - DATA DE REVISÃO
-  ITENS_ONA:                12, // M - ITENS ONA
+  // Colunas conforme planilha LISTA_MESTRE (sem coluna ID)
+  TIPO_DOCUMENTO:           0,  // A - TIPO DE DOCUMENTO
+  NIVEL:                    1,  // B - NÍVEL
+  CODIGO:                   2,  // C - CÓDIGO
+  TITULO:                   3,  // D - TITULO DO DOCUMENTO
+  UNIDADE:                  4,  // E - UNIDADE
+  SETOR:                    5,  // F - SETOR
+  STATUS_DEMANDA:           6,  // G - STATUS DA DEMANDA
+  STATUS_DOCUMENTO:         7,  // H - STATUS DO DOCUMENTO
+  VIGENCIA:                 8,  // I - VIGÊNCIA
+  DATA_SOLICITACAO:         9,  // J - DATA DA SOLICITAÇÃO (E-MAIL/FLUIG)
+  LINK_EMAIL:               10, // K - LINK E-MAIL
+  DATA_VALIDACAO:           11, // L - DATA DA VALIDAÇÃO
+  TEMPO_VALIDACAO:          12, // M - TEMPO EM VALIDAÇÃO
+  DATA_PADRONIZACAO:        13, // N - DATA DA PADRONIZAÇÃO
+  DATA_PUBLICACAO:          14, // O - DATA DA PUBLICAÇÃO
+  TEMPO_PADRONIZACAO:       15, // P - TEMPO EM PADRONIZAÇÃO
+  PRAZO_MAX_PADRONIZACAO:   16, // Q - PRAZO MÁXIMO PARA PADRONIZAÇÃO
+  CONFORMIDADE_PRAZO:       17, // R - CONFORMIDADE COM O PRAZO
+  DATA_PADRONIZACAO_REVISAO:18, // S - DATA DA PADRONIZAÇÃO/REVISÃO
+  DATA_PROXIMA_REVISAO:     19, // T - DATA DA PRÓXIMA REVISÃO
+  VERSAO:                   20, // U - VERSÃO
+  REVISAO:                  21, // V - REVISÃO
+  DIAS_VENCIMENTO:          22, // W - DIAS PARA VENCIMENTO
+  STATUS_VALIDADE:          23, // X - STATUS DA VALIDADE
+  CONCLUIDA_POR:            24, // Y - CONCLUIDA POR
+  ELABORADOR:               25, // Z - ELABORADOR
+  APROVADOR:                26, // AA - APROVADOR
+  // AB, AC, AD, AE vazias
+  ITENS_ONA:                30, // AF - ITENS_ONA
+  OBS:                      31, // AG - OBS
+  SOLUCAO:                  32, // AH - SOLUÇÃO
   // aliases
-  ID:                       3,
-  SETOR:                    5,
-  STATUS_DOCUMENTO:         7,
+  ID:                       2,  // usa CÓDIGO como ID
+  LOCALIZACAO:              5,  // usa SETOR como LOCALIZAÇÃO
+  LINK_EDITAVEL:            10, // usa LINK E-MAIL
+  NOME:                     25, // usa ELABORADOR como NOME
+  AREA:                     5,  // usa SETOR como ÁREA
 };
 
 const HEADERS = [
@@ -148,35 +168,54 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
       const dataRevisao = row[COLS.DATA_PROXIMA_REVISAO] ?? "";
       const dias = calcularDiasVencimento(dataRevisao);
       const statusValidade = calcularStatusValidade(dias);
-      // Lê status direto da coluna H da planilha
-      const statusRaw = (row[COLS.STATUS_DEMANDA] ?? "").toUpperCase().trim();
-      const statusFinal = statusRaw.includes("VENCIDO") ? "VENCIDO"
-        : statusRaw.includes("VENCENDO") ? "VENCENDO"
-        : statusRaw.includes("VIGENTE") ? "VIGENTE"
-        : statusValidade;
+      // Status da Demanda (col G) e Status da Validade (col X) vêm direto da planilha
+      const statusDemandaRaw = (row[COLS.STATUS_DEMANDA] ?? "").trim();
+      const statusValidadeRaw = (row[COLS.STATUS_VALIDADE] ?? "").trim();
+      // Normaliza para uppercase
+      const statusNorm = (s: string) => {
+        const u = s.toUpperCase();
+        if (u.includes("VENCIDO")) return "VENCIDO";
+        if (u.includes("VENCENDO")) return "VENCENDO";
+        if (u.includes("VIGENTE")) return "VIGENTE";
+        return s || statusValidade;
+      };
+      const statusFinal = statusNorm(statusValidadeRaw || statusDemandaRaw);
       return {
         _linha:               i + 2,
-        id:                   row[COLS.CODIGO]               ?? "",
-        nome:                 row[COLS.NOME]                 ?? "",
-        titulo:               row[COLS.TITULO]               ?? "",
-        linkEditavel:         row[COLS.LINK_EDITAVEL]        ?? "",
-        codigo:               row[COLS.CODIGO]               ?? "",
-        tipo:                 row[COLS.TIPO_DOCUMENTO]       ?? "",
-        tipoDocumento:        row[COLS.TIPO_DOCUMENTO]       ?? "",
-        localizacao:          row[COLS.LOCALIZACAO]          ?? "",
-        setor:                row[COLS.LOCALIZACAO]          ?? "",
-        unidade:              row[COLS.UNIDADE]              ?? "",
-        area:                 row[COLS.AREA]                 ?? "",
-        statusDocumento:      row[COLS.STATUS_DOCUMENTO]     ?? "",
-        observacao:           row[COLS.OBS]                  ?? "",
-        dataPadronizacao:     row[COLS.DATA_PADRONIZACAO]    ?? "",
-        dataRevisao:          dataRevisao,
+        id:                   row[COLS.CODIGO]                    ?? "",
+        codigo:               row[COLS.CODIGO]                    ?? "",
+        titulo:               row[COLS.TITULO]                    ?? "",
+        tipo:                 row[COLS.TIPO_DOCUMENTO]            ?? "",
+        tipoDocumento:        row[COLS.TIPO_DOCUMENTO]            ?? "",
+        nivel:                row[COLS.NIVEL]                     ?? "",
+        unidade:              row[COLS.UNIDADE]                   ?? "",
+        setor:                row[COLS.SETOR]                     ?? "",
+        localizacao:          row[COLS.SETOR]                     ?? "",
+        area:                 row[COLS.SETOR]                     ?? "",
+        statusDemanda:        statusDemandaRaw,
+        statusDocumento:      row[COLS.STATUS_DOCUMENTO]          ?? "",
+        vigencia:             row[COLS.VIGENCIA]                  ?? "",
+        dataSolicitacao:      row[COLS.DATA_SOLICITACAO]          ?? "",
+        linkEditavel:         row[COLS.LINK_EMAIL]                ?? "",
+        nome:                 row[COLS.ELABORADOR]                ?? "",
+        dataValidacao:        row[COLS.DATA_VALIDACAO]            ?? "",
+        dataPadronizacao:     row[COLS.DATA_PADRONIZACAO]        ?? "",
+        dataPublicacao:       row[COLS.DATA_PUBLICACAO]           ?? "",
+        prazoMaxPadronizacao: row[COLS.PRAZO_MAX_PADRONIZACAO]   ?? "",
+        conformidadePrazo:    row[COLS.CONFORMIDADE_PRAZO]        ?? "",
+        dataRevisao:          row[COLS.DATA_PADRONIZACAO_REVISAO] ?? "",
         dataProximaRevisao:   dataRevisao,
+        versao:               row[COLS.VERSAO]                    ?? "",
+        revisao:              row[COLS.REVISAO]                   ?? "",
+        diasVencimento:       row[COLS.DIAS_VENCIMENTO] ? parseInt(row[COLS.DIAS_VENCIMENTO]) : dias,
+        concluidaPor:         row[COLS.CONCLUIDA_POR]             ?? "",
+        elaborador:           row[COLS.ELABORADOR]                ?? "",
+        aprovador:            row[COLS.APROVADOR]                 ?? "",
         itensONA:             (row[COLS.ITENS_ONA] ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
-        diasVencimento:       dias,
+        observacao:           row[COLS.OBS]                       ?? "",
+        solucao:              row[COLS.SOLUCAO]                   ?? "",
         statusValidade:       statusFinal,
         status:               statusFinal,
-        statusDemanda:        statusFinal,
       };
     });
 }
