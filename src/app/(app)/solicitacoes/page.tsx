@@ -21,7 +21,7 @@ const CONF_CORES: Record<string, { bg: string; text: string }> = {
 const COLS_TABELA = [
   "ASSUNTO","REMETENTE","DATA DE ENVIO","STATUS","RESPONSÁVEL",
   "DATA DE VALIDAÇÃO","DATA DE PADRONIZAÇÃO","DATA DE PUBLICAÇÃO",
-  "TEMPO DE PADRONIZAÇÃO","CONFORMIDADE COM O PRAZO","QDE DE DOCUMENTOS","DESCONFORMIDADES",
+  "TEMPO DE PADRONIZAÇÃO","CONFORMIDADE COM O PRAZO","QDE DE DOCUMENTOS","DESCONFORMIDADES","E-MAIL DO SOLICITANTE",
 ];
 
 const COLS_DETALHE = [
@@ -302,6 +302,8 @@ export default function Solicitacoes() {
                           <td key={col} className="px-3 py-3 whitespace-nowrap max-w-[180px]">
                             {col==="ASSUNTO"
                               ? <span className="font-semibold text-slate-900 truncate block max-w-[160px]">{sol[col]||"—"}</span>
+                              : col==="E-MAIL DO SOLICITANTE" && sol[col]?.includes("@")
+                              ? <a href={`mailto:${sol[col]}`} className="text-blue-600 hover:underline">{sol[col]}</a>
                               : renderCell(sol, col)}
                           </td>
                         ))}
