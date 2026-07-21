@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const search  = searchParams.get("search")  ?? "";
     const status  = searchParams.get("status")  ?? "";
     const unidade = searchParams.get("unidade") ?? "";
+    const area    = searchParams.get("area")    ?? "";
 
     let docs = await lerPlanilha(accessToken, refreshToken);
 
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
     );
     if (status)  docs = docs.filter(d => d.statusValidade === status);
     if (unidade) docs = docs.filter(d => d.unidade.toLowerCase().includes(unidade.toLowerCase()));
+    if (area)    docs = docs.filter(d => d.area?.toLowerCase().includes(area.toLowerCase()));
 
     return NextResponse.json({ docs, total: docs.length });
   } catch (e: any) {

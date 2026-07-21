@@ -51,6 +51,7 @@ export default function ListaMestraPage() {
   const [search, setSearch] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
   const [filtroUnidade, setFiltroUnidade] = useState("");
+  const [filtroArea, setFiltroArea] = useState("");
   const [syncing, setSyncing] = useState(false);
 
   const { data: session } = useSession();
@@ -77,6 +78,7 @@ export default function ListaMestraPage() {
       if (search)        params.set("search", search);
       if (filtroStatus)  params.set("status", filtroStatus);
       if (filtroUnidade) params.set("unidade", filtroUnidade);
+      if (filtroArea)    params.set("area", filtroArea);
       const res = await fetch(`/api/lista-mestra?${params}`);
       const j = await res.json();
       if (j.error) setError(j.error);
@@ -85,7 +87,7 @@ export default function ListaMestraPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, [search, filtroStatus, filtroUnidade]);
+  useEffect(() => { load(); }, [search, filtroStatus, filtroUnidade, filtroArea]);
 
   async function sincronizar() {
     setSyncing(true);
@@ -167,6 +169,13 @@ export default function ListaMestraPage() {
           <option value="">Todas as unidades</option>
           {UNIDADES.map(u => (
             <option key={u.sigla} value={u.sigla}>{u.sigla}</option>
+          ))}
+        </select>
+        <select value={filtroArea} onChange={e=>setFiltroArea(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-48">
+          <option value="">Todas as áreas</option>
+          {[...new Set(docs.map((d:any) => d.area).filter(Boolean))].sort().map((a:any) => (
+            <option key={a} value={a}>{a}</option>
           ))}
         </select>
       </div>
