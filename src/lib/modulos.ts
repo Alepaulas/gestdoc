@@ -24,7 +24,7 @@ export const PAPEL_MODULOS: Record<PapelFluxo, Modulo[]> = {
   REFERENCIA_TECNICA: ["dashboard", "documentos", "solicitacoes"],
   NUGESP:             ["dashboard", "documentos", "solicitacoes"],
   GESTDOC:            ["dashboard", "documentos", "solicitacoes", "formatador", "revisor"],
-  OPERACIONAL:        ["dashboard", "formatador", "inventario"],
+  OPERACIONAL:            ["dashboard", "solicitacoes", "formatador", "inventario"],
   ADMIN:              ["dashboard", "documentos", "solicitacoes", "inventario", "ona", "auditoria", "formatador", "revisor", "configuracoes"],
 };
 
