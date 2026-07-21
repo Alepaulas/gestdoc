@@ -5,34 +5,26 @@ const SHEET_NAME = "LISTA_MESTRE";
 
 // Estrutura completa da Lista Mestra
 const COLS = {
-  ID:                       0,  // A
-  TIPO_DOCUMENTO:           1,  // B
-  NIVEL:                    2,  // C
-  CODIGO:                   3,  // D
-  TITULO:                   4,  // E
-  UNIDADE:                  5,  // F
-  SETOR:                    6,  // G
-  STATUS_DEMANDA:           7,  // H
-  STATUS_DOCUMENTO:         8,  // I
-  VIGENCIA:                 9,  // J
-  DATA_SOLICITACAO:         10, // K
-  LINK_EMAIL:               11, // L
-  ENCAMINHADO_VALIDACAO:    12, // M
-  DATA_VALIDACAO:           13, // N
-  PRAZO_MAX_PADRONIZACAO:   14, // O
-  DATA_PADRONIZACAO:        15, // P
-  CONFORMIDADE_PRAZO:       16, // Q
-  DATA_PROXIMA_REVISAO:     17, // R
-  VERSAO:                   18, // S
-  REVISAO:                  19, // T
-  DATA_PUBLICACAO:          20, // U
-  DIAS_VENCIMENTO:          21, // V
-  STATUS_VALIDADE:          22, // W
-  CONCLUIDA_POR:            23, // X
-  ELABORADOR:               24, // Y
-  APROVADOR:                25, // Z
-  CADASTRADO_EM:            26, // AA
-  CADASTRADO_POR:           27, // AB
+  // Colunas conforme planilha LISTA_MESTRE real
+  NOME:                     0,  // A - NOME
+  TITULO:                   1,  // B - DOCUMENTO
+  LINK_EDITAVEL:            2,  // C - LINK DOCUMENTO (editável)
+  CODIGO:                   3,  // D - CÓDIGO
+  TIPO_DOCUMENTO:           4,  // E - TIPO
+  LOCALIZACAO:              5,  // F - LOCALIZAÇÃO
+  UNIDADE:                  6,  // G - UNIDADE
+  AREA:                     7,  // H - ÁREA
+  STATUS_DOCUMENTO:         8,  // I - STATUS
+  OBS:                      9,  // J - OBS
+  DATA_PADRONIZACAO:        10, // K - DATA DE PADRONIZAÇÃO
+  DATA_PROXIMA_REVISAO:     11, // L - DATA DE REVISÃO
+  ITENS_ONA:                12, // M - ITENS ONA
+  // aliases para compatibilidade
+  ID:                       3,  // usa CODIGO como ID
+  SETOR:                    5,  // usa LOCALIZACAO como SETOR
+  STATUS_DEMANDA:           8,  // usa STATUS como STATUS_DEMANDA
+  CADASTRADO_EM:            10, // placeholder
+  CADASTRADO_POR:           0,  // usa NOME como responsável
   ATUALIZADO_EM:            28, // AC
   ATUALIZADO_POR:           29, // AD
   ITENS_ONA:                30, // AE
@@ -158,46 +150,33 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
   return rows
     .filter(row => row[COLS.TITULO] || row[COLS.CODIGO])
     .map((row, i) => {
-      const proximaRevisao = row[COLS.DATA_PROXIMA_REVISAO] ?? "";
-      const dias = calcularDiasVencimento(proximaRevisao);
+      const dataRevisao = row[COLS.DATA_PROXIMA_REVISAO] ?? "";
+      const dias = calcularDiasVencimento(dataRevisao);
       const statusValidade = calcularStatusValidade(dias);
       return {
         _linha:               i + 2,
-        id:                   row[COLS.ID]                    ?? "",
-        tipoDocumento:        row[COLS.TIPO_DOCUMENTO]        ?? "",
-        nivel:                row[COLS.NIVEL]                 ?? "",
-        codigo:               row[COLS.CODIGO]                ?? "",
-        titulo:               row[COLS.TITULO]                ?? "",
-        unidade:              row[COLS.UNIDADE]               ?? "",
-        setor:                row[COLS.SETOR]                 ?? "",
-        statusDemanda:        row[COLS.STATUS_DEMANDA]        ?? "",
-        statusDocumento:      row[COLS.STATUS_DOCUMENTO]      ?? "",
-        vigencia:             row[COLS.VIGENCIA]              ?? "",
-        dataSolicitacao:      row[COLS.DATA_SOLICITACAO]      ?? "",
-        linkEmail:            row[COLS.LINK_EMAIL]            ?? "",
-        encaminhadoValidacao: row[COLS.ENCAMINHADO_VALIDACAO] ?? "",
-        dataValidacao:        row[COLS.DATA_VALIDACAO]        ?? "",
-        prazoMaxPadronizacao: row[COLS.PRAZO_MAX_PADRONIZACAO]?? "",
-        dataPadronizacao:     row[COLS.DATA_PADRONIZACAO]     ?? "",
-        conformidadePrazo:    calcularConformidadePrazo(
-                                row[COLS.DATA_PADRONIZACAO]     ?? "",
-                                row[COLS.PRAZO_MAX_PADRONIZACAO]?? ""
-                              ),
-        dataProximaRevisao:   proximaRevisao,
-        versao:               row[COLS.VERSAO]                ?? "",
-        revisao:              row[COLS.REVISAO]               ?? "",
-        dataPublicacao:       row[COLS.DATA_PUBLICACAO]       ?? "",
+        id:                   row[COLS.CODIGO]               ?? "",
+        nome:                 row[COLS.NOME]                 ?? "",
+        titulo:               row[COLS.TITULO]               ?? "",
+        linkEditavel:         row[COLS.LINK_EDITAVEL]        ?? "",
+        codigo:               row[COLS.CODIGO]               ?? "",
+        tipo:                 row[COLS.TIPO_DOCUMENTO]       ?? "",
+        tipoDocumento:        row[COLS.TIPO_DOCUMENTO]       ?? "",
+        localizacao:          row[COLS.LOCALIZACAO]          ?? "",
+        setor:                row[COLS.LOCALIZACAO]          ?? "",
+        unidade:              row[COLS.UNIDADE]              ?? "",
+        area:                 row[COLS.AREA]                 ?? "",
+        statusDocumento:      row[COLS.STATUS_DOCUMENTO]     ?? "",
+        observacao:           row[COLS.OBS]                  ?? "",
+        dataPadronizacao:     row[COLS.DATA_PADRONIZACAO]    ?? "",
+        dataRevisao:          dataRevisao,
+        dataProximaRevisao:   dataRevisao,
+        itensONA:             (row[COLS.ITENS_ONA] ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
         diasVencimento:       dias,
         statusValidade,
-        concluidaPor:         row[COLS.CONCLUIDA_POR]         ?? "",
-        elaborador:           row[COLS.ELABORADOR]            ?? "",
-        aprovador:            row[COLS.APROVADOR]             ?? "",
-        cadastradoEm:         row[COLS.CADASTRADO_EM]         ?? "",
-        cadastradoPor:        row[COLS.CADASTRADO_POR]        ?? "",
-        atualizadoEm:         row[COLS.ATUALIZADO_EM]         ?? "",
-        atualizadoPor:        row[COLS.ATUALIZADO_POR]        ?? "",
-        // Legacy
+        // status calculado automaticamente pela data de revisão
         status:               statusValidade,
+        statusDemanda:        statusValidade,
         dataRevisao:          proximaRevisao,
         itensONA:             (row[COLS.ITENS_ONA] ?? "")
                                 .split(",")
