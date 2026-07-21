@@ -13,21 +13,16 @@ const COLS = {
   TIPO_DOCUMENTO:           4,  // E - TIPO
   LOCALIZACAO:              5,  // F - LOCALIZAÇÃO
   UNIDADE:                  6,  // G - UNIDADE
-  AREA:                     7,  // H - ÁREA
-  STATUS_DOCUMENTO:         8,  // I - STATUS
+  STATUS_DEMANDA:           7,  // H - STATUS DA DEMANDA (VIGENTE/VENCENDO/VENCIDO)
+  AREA:                     8,  // I - ÁREA (ou STATUS DO DOCUMENTO)
   OBS:                      9,  // J - OBS
   DATA_PADRONIZACAO:        10, // K - DATA DE PADRONIZAÇÃO
   DATA_PROXIMA_REVISAO:     11, // L - DATA DE REVISÃO
   ITENS_ONA:                12, // M - ITENS ONA
-  // aliases para compatibilidade
-  ID:                       3,  // usa CODIGO como ID
-  SETOR:                    5,  // usa LOCALIZACAO como SETOR
-  STATUS_DEMANDA:           8,  // usa STATUS como STATUS_DEMANDA
-  CADASTRADO_EM:            10, // placeholder
-  CADASTRADO_POR:           0,  // usa NOME como responsável
-  ATUALIZADO_EM:            28, // AC
-  ATUALIZADO_POR:           29, // AD
-  ITENS_ONA:                30, // AE
+  // aliases
+  ID:                       3,
+  SETOR:                    5,
+  STATUS_DOCUMENTO:         7,
 };
 
 const HEADERS = [
@@ -153,6 +148,12 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
       const dataRevisao = row[COLS.DATA_PROXIMA_REVISAO] ?? "";
       const dias = calcularDiasVencimento(dataRevisao);
       const statusValidade = calcularStatusValidade(dias);
+      // Lê status direto da coluna H da planilha
+      const statusRaw = (row[COLS.STATUS_DEMANDA] ?? "").toUpperCase().trim();
+      const statusFinal = statusRaw.includes("VENCIDO") ? "VENCIDO"
+        : statusRaw.includes("VENCENDO") ? "VENCENDO"
+        : statusRaw.includes("VIGENTE") ? "VIGENTE"
+        : statusValidade;
       return {
         _linha:               i + 2,
         id:                   row[COLS.CODIGO]               ?? "",
@@ -173,9 +174,9 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
         dataProximaRevisao:   dataRevisao,
         itensONA:             (row[COLS.ITENS_ONA] ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
         diasVencimento:       dias,
-        statusValidade,
-        status:               statusValidade,
-        statusDemanda:        statusValidade,
+        statusValidade:       statusFinal,
+        status:               statusFinal,
+        statusDemanda:        statusFinal,
       };
     });
 }
