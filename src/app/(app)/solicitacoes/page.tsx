@@ -304,7 +304,9 @@ export default function Solicitacoes() {
                               {COLS_DETALHE.map(col => sol[col] ? (
                                 <div key={col}>
                                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{col}</p>
-                                  <p className="text-xs text-slate-800 mt-0.5">{sol[col]}</p>
+                                  col.includes("E-MAIL") && sol[col].includes("@")
+                                    ? <a href={`mailto:${sol[col]}`} className="text-xs text-blue-600 hover:underline mt-0.5 block">{sol[col]}</a>
+                                    : <p className="text-xs text-slate-800 mt-0.5">{sol[col]}</p>
                                 </div>
                               ) : null)}
                             </div>
