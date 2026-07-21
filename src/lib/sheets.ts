@@ -174,14 +174,8 @@ export async function lerPlanilha(accessToken: string, refreshToken?: string) {
         itensONA:             (row[COLS.ITENS_ONA] ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
         diasVencimento:       dias,
         statusValidade,
-        // status calculado automaticamente pela data de revisão
         status:               statusValidade,
         statusDemanda:        statusValidade,
-        dataRevisao:          proximaRevisao,
-        itensONA:             (row[COLS.ITENS_ONA] ?? "")
-                                .split(",")
-                                .map((s: string) => s.trim())
-                                .filter(Boolean),
       };
     });
 }
