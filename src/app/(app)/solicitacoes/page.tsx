@@ -1,16 +1,16 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Search, Download, RefreshCw, ClipboardPlus, AlertCircle, CheckCircle, Clock, TrendingUp, Save, X } from "lucide-react";
+import { Search, Download, RefreshCw, ClipboardPlus, AlertCircle, Save, X } from "lucide-react";
 
 const STATUS_OPTS = ["Pendente","Em validação","Em padronização","Publicada","Cancelada"];
 const RESPONSAVEIS = ["Pedro","Rozane"];
 
 const ST_CORES: Record<string, { bg: string; text: string; dot: string }> = {
-  "Pendente":         { bg:"#fffbeb", text:"#92400e", dot:"#d97706" },
-  "Em validação":     { bg:"#eff6ff", text:"#1e40af", dot:"#2563eb" },
-  "Em padronização":  { bg:"#f5f3ff", text:"#5b21b6", dot:"#7c3aed" },
-  "Publicada":        { bg:"#f0fdf4", text:"#15803d", dot:"#16a34a" },
-  "Cancelada":        { bg:"#f8fafc", text:"#475569", dot:"#94a3b8" },
+  "Pendente":        { bg:"#fffbeb", text:"#92400e", dot:"#d97706" },
+  "Em validação":    { bg:"#eff6ff", text:"#1e40af", dot:"#2563eb" },
+  "Em padronização": { bg:"#f5f3ff", text:"#5b21b6", dot:"#7c3aed" },
+  "Publicada":       { bg:"#f0fdf4", text:"#15803d", dot:"#16a34a" },
+  "Cancelada":       { bg:"#f8fafc", text:"#475569", dot:"#94a3b8" },
 };
 
 const CONF_CORES: Record<string, { bg: string; text: string }> = {
@@ -41,18 +41,18 @@ const EDITAVEIS: Record<string, "status"|"responsavel"|"data"> = {
 };
 
 export default function Solicitacoes() {
-  const [data, setData]             = useState<any[]>([]);
-  const [total, setTotal]           = useState(0);
-  const [pctConf, setPctConf]       = useState<number|null>(null);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState("");
-  const [search, setSearch]         = useState("");
-  const [statusFiltro, setStatus]   = useState("");
-  const [respFiltro, setResp]       = useState("");
-  const [expandido, setExpandido]   = useState<string|null>(null);
-  const [editCell, setEditCell]     = useState<{linha:string;col:string}|null>(null);
-  const [editVal, setEditVal]       = useState("");
-  const [saving, setSaving]         = useState(false);
+  const [data, setData]           = useState<any[]>([]);
+  const [total, setTotal]         = useState(0);
+  const [pctConf, setPctConf]     = useState<number|null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [search, setSearch]       = useState("");
+  const [statusFiltro, setStatus] = useState("");
+  const [respFiltro, setResp]     = useState("");
+  const [expandido, setExpandido] = useState<string|null>(null);
+  const [editCell, setEditCell]   = useState<{linha:string;col:string}|null>(null);
+  const [editVal, setEditVal]     = useState("");
+  const [saving, setSaving]       = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true); setError("");
@@ -109,7 +109,6 @@ export default function Solicitacoes() {
     const tipo = EDITAVEIS[col];
 
     if (!tipo) {
-      // Conformidade com cores
       if (col === "CONFORMIDADE COM O PRAZO") {
         const c = CONF_CORES[val];
         return c
@@ -146,7 +145,7 @@ export default function Solicitacoes() {
           <button onClick={()=>setEditCell(null)} className="p-0.5 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3"/></button>
         </div>
       );
-      if (tipo === "data") return (
+      return (
         <div className="flex items-center gap-1">
           <input type="text" value={editVal} onChange={e=>setEditVal(e.target.value)} autoFocus
             placeholder="dd/mm/aaaa"
@@ -157,12 +156,11 @@ export default function Solicitacoes() {
       );
     }
 
-    // Célula editável — exibe valor com indicador
     if (tipo === "status") {
       const c = ST_CORES[val] ?? { bg:"#f8fafc", text:"#475569", dot:"#94a3b8" };
       return (
         <span onClick={()=>startEdit(sol._linha, col, val)}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer hover:opacity-80 transition-opacity"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer hover:opacity-80"
           style={{background:c.bg,color:c.text}} title="Clique para editar">
           <span className="w-1.5 h-1.5 rounded-full" style={{background:c.dot}}/>
           {val || "Pendente"}
@@ -171,7 +169,7 @@ export default function Solicitacoes() {
     }
     return (
       <span onClick={()=>startEdit(sol._linha, col, val)}
-        className="text-slate-700 cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+        className="text-slate-700 cursor-pointer hover:text-blue-600 hover:underline"
         title="Clique para editar">
         {val || <span className="text-slate-300 italic">Editar</span>}
       </span>
@@ -186,7 +184,7 @@ export default function Solicitacoes() {
             <ClipboardPlus className="w-5 h-5 text-blue-700"/>Solicitações
           </h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            Fonte: planilha <span className="font-mono text-blue-700">SOLICITACOES</span> · campos editáveis salvam direto na planilha
+            Fonte: planilha <span className="font-mono text-blue-700">SOLICITACOES</span> · campos com ✎ editáveis direto na planilha
           </p>
         </div>
         <div className="flex gap-2">
@@ -201,36 +199,34 @@ export default function Solicitacoes() {
 
       {/* KPIs */}
       <div className="grid grid-cols-5 gap-4 mb-5">
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-2xl font-bold text-blue-700">{total}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Total</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-2xl font-bold text-emerald-700">{concluidas}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Publicadas</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-2xl font-bold text-blue-700">{emAndamento}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Em andamento</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-2xl font-bold text-red-700">{foraPrazo}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Fora do prazo</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <div className="flex items-end gap-1">
-            <p className={`text-2xl font-bold ${pctConf !== null ? (pctConf >= 80 ? "text-emerald-700" : pctConf >= 50 ? "text-amber-700" : "text-red-700") : "text-slate-300"}`}>
-              {pctConf !== null ? `${pctConf}%` : "—"}
-            </p>
+        {[
+          {label:"Total",        value:total,      color:"text-blue-700"},
+          {label:"Publicadas",   value:concluidas,  color:"text-emerald-700"},
+          {label:"Em andamento", value:emAndamento, color:"text-blue-700"},
+          {label:"Pendentes",    value:pendentes,   color:"text-amber-700"},
+          {label:"Fora do prazo",value:foraPrazo,   color:"text-red-700"},
+        ].map(k=>(
+          <div key={k.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{k.label}</p>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">Conformidade com prazo</p>
-          {pctConf !== null && (
-            <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{width:`${pctConf}%`, background: pctConf>=80?"#16a34a":pctConf>=50?"#d97706":"#dc2626"}}/>
-            </div>
-          )}
-        </div>
+        ))}
       </div>
+
+      {/* Conformidade */}
+      {pctConf !== null && (
+        <div className="bg-white border border-slate-100 rounded-2xl p-4 mb-5 shadow-sm flex items-center gap-5">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Conformidade com prazo (10 dias úteis)</p>
+            <p className={`text-3xl font-bold ${pctConf>=80?"text-emerald-700":pctConf>=50?"text-amber-700":"text-red-700"}`}>{pctConf}%</p>
+          </div>
+          <div className="flex-1">
+            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{width:`${pctConf}%`,background:pctConf>=80?"#16a34a":pctConf>=50?"#d97706":"#dc2626"}}/>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4 flex flex-wrap gap-3">
@@ -262,18 +258,17 @@ export default function Solicitacoes() {
             <p className="text-sm">Nenhuma solicitação encontrada</p>
           </div>
         )}
-
         {!loading && !error && data.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs" style={{minWidth:"1100px"}}>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {COLS_TABELA.map(h => (
-                    <th key={h} className={`text-left px-3 py-3 font-semibold text-slate-500 uppercase tracking-wider text-[10px] whitespace-nowrap ${EDITAVEIS[h] ? "text-blue-500" : ""}`}>
-                      {h}{EDITAVEIS[h] ? " ✎" : ""}
+                  {COLS_TABELA.map(h=>(
+                    <th key={h} className={`text-left px-3 py-3 font-semibold uppercase tracking-wider text-[10px] whitespace-nowrap ${EDITAVEIS[h]?"text-blue-500":"text-slate-500"}`}>
+                      {h}{EDITAVEIS[h]?" ✎":""}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-[10px] text-slate-400">+</th>
+                  <th className="px-3 py-3"/>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -282,10 +277,10 @@ export default function Solicitacoes() {
                   return (
                     <>
                       <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        {COLS_TABELA.map(col => (
+                        {COLS_TABELA.map(col=>(
                           <td key={col} className="px-3 py-3 whitespace-nowrap max-w-[180px]">
-                            {col === "ASSUNTO"
-                              ? <span className="font-semibold text-slate-900 truncate block max-w-[160px]">{sol[col] || "—"}</span>
+                            {col==="ASSUNTO"
+                              ? <span className="font-semibold text-slate-900 truncate block max-w-[160px]">{sol[col]||"—"}</span>
                               : renderCell(sol, col)}
                           </td>
                         ))}
@@ -296,19 +291,26 @@ export default function Solicitacoes() {
                           </button>
                         </td>
                       </tr>
+
                       {isOpen && (
                         <tr key={`${i}-detail`}>
                           <td colSpan={COLS_TABELA.length+1} className="px-5 py-4 bg-slate-50 border-b border-slate-200">
                             <p className="text-xs font-bold text-slate-600 mb-3">Detalhes</p>
                             <div className="grid grid-cols-4 gap-x-8 gap-y-2.5">
-                              {COLS_DETALHE.map(col => sol[col] ? (
-                                <div key={col}>
-                                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{col}</p>
-                                  col.includes("E-MAIL") && sol[col].includes("@")
-                                    ? <a href={`mailto:${sol[col]}`} className="text-xs text-blue-600 hover:underline mt-0.5 block">{sol[col]}</a>
-                                    : <p className="text-xs text-slate-800 mt-0.5">{sol[col]}</p>
-                                </div>
-                              ) : null)}
+                              {COLS_DETALHE.map(col => {
+                                const val = sol[col];
+                                if (!val) return null;
+                                const isEmail = col.includes("E-MAIL") && val.includes("@");
+                                return (
+                                  <div key={col}>
+                                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{col}</p>
+                                    {isEmail
+                                      ? <a href={`mailto:${val}`} className="text-xs text-blue-600 hover:underline mt-0.5 block">{val}</a>
+                                      : <p className="text-xs text-slate-800 mt-0.5">{val}</p>
+                                    }
+                                  </div>
+                                );
+                              })}
                             </div>
                           </td>
                         </tr>
@@ -321,7 +323,7 @@ export default function Solicitacoes() {
           </div>
         )}
         <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
-          <p className="text-xs text-slate-500">{total} solicitações · Colunas com ✎ são editáveis — clique para editar e salvar na planilha</p>
+          <p className="text-xs text-slate-500">{total} solicitações · Colunas com ✎ são editáveis · clique ▼ para ver detalhes e e-mail clicável</p>
           <button onClick={exportarCSV} className="text-xs text-emerald-700 hover:underline flex items-center gap-1">
             <Download className="w-3 h-3"/>Exportar
           </button>
