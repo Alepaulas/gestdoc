@@ -21,7 +21,7 @@ const CONF_CORES: Record<string, { bg: string; text: string }> = {
 const COLS_TABELA = [
   "ASSUNTO","REMETENTE","DATA DE ENVIO","STATUS","RESPONSÁVEL",
   "DATA DE VALIDAÇÃO","DATA DE PADRONIZAÇÃO","DATA DE PUBLICAÇÃO",
-  "TEMPO DE PADRONIZAÇÃO","CONFORMIDADE COM O PRAZO",
+  "TEMPO DE PADRONIZAÇÃO","CONFORMIDADE COM O PRAZO","QDE DE DOCUMENTOS","DESCONFORMIDADES",
 ];
 
 const COLS_DETALHE = [
@@ -33,11 +33,13 @@ const COLS_DETALHE = [
   "CRIADO_EM","CRIADO_POR","ATUALIZADO_EM","ATUALIZADO_POR",
 ];
 
-const EDITAVEIS: Record<string, "status"|"responsavel"|"data"> = {
+const EDITAVEIS: Record<string, "status"|"responsavel"|"data"|"numero"|"texto"> = {
   "STATUS": "status",
   "RESPONSÁVEL": "responsavel",
   "DATA DE PADRONIZAÇÃO": "data",
   "DATA DE PUBLICAÇÃO": "data",
+  "QDE DE DOCUMENTOS": "numero",
+  "DESCONFORMIDADES": "texto",
 };
 
 export default function Solicitacoes() {
@@ -153,6 +155,25 @@ export default function Solicitacoes() {
           <button onClick={saveEdit} disabled={saving} className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Save className="w-3 h-3"/></button>
           <button onClick={()=>setEditCell(null)} className="p-0.5 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3"/></button>
         </div>
+      );
+    }
+
+    if (tipo === "numero" || tipo === "texto") {
+      if (isEditing) return (
+        <div className="flex items-center gap-1">
+          <input type={tipo === "numero" ? "number" : "text"} value={editVal} onChange={e=>setEditVal(e.target.value)} autoFocus
+            className="w-20 border border-blue-300 rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder={tipo === "numero" ? "0" : "..."}/>
+          <button onClick={saveEdit} disabled={saving} className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Save className="w-3 h-3"/></button>
+          <button onClick={()=>setEditCell(null)} className="p-0.5 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3"/></button>
+        </div>
+      );
+      return (
+        <span onClick={()=>startEdit(sol._linha, col, val)}
+          className="text-slate-700 cursor-pointer hover:text-blue-600 hover:underline"
+          title="Clique para editar">
+          {val || <span className="text-slate-300 italic">—</span>}
+        </span>
       );
     }
 
