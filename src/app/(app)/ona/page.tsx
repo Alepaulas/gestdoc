@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import { useAuditoria, auditarAcao } from "@/lib/useAuditoria";
 import { useEffect, useState } from "react";
 import { ChevronRight, FileText, CheckCircle, AlertTriangle, XCircle, Map } from "lucide-react";
 

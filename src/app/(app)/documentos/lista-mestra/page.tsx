@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import { useAuditoria, auditarAcao } from "@/lib/useAuditoria";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, RefreshCw, CheckCircle, AlertTriangle, XCircle, Download, FileText } from "lucide-react";
@@ -43,6 +45,7 @@ const STATUS_DEMANDA_COLOR: Record<string, string> = {
 
 export default function ListaMestraPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
+  useAuditoria("Lista Mestra");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");

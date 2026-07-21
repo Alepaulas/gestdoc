@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import { useAuditoria, auditarAcao } from "@/lib/useAuditoria";
 import { useEffect, useState, useCallback } from "react";
 import { Search, Download, AlertTriangle, CheckCircle, XCircle, Filter, ClipboardList } from "lucide-react";
 
@@ -77,6 +79,7 @@ function Check({ ok }: { ok: boolean }) {
 
 export default function Auditoria() {
   const [docs, setDocs] = useState<DocAuditoria[]>([]);
+  useAuditoria("Auditoria");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");

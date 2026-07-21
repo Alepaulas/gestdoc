@@ -469,3 +469,72 @@ export async function atualizarSolicitacao(
     requestBody: { values: [row] },
   });
 }
+
+// ─── AUDITORIA sheet ─────────────────────────────────────────────────────────
+
+const AUDITORIA_SHEET = "AUDITORIA";
+const AUDITORIA_HEADERS = ["DATA/HORA","USUÁRIO","E-MAIL","AÇÃO","MÓDULO","DETALHE"];
+
+export async function registrarAuditoria(
+  accessToken: string,
+  refreshToken: string | undefined,
+  entry: { usuario: string; email: string; acao: string; modulo: string; detalhe?: string }
+) {
+  try {
+    const sheets = getSheetsClient(accessToken, refreshToken);
+
+    // Garante que a aba existe
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const abaExiste = meta.data.sheets?.some(s => s.properties?.title === AUDITORIA_SHEET);
+
+    if (!abaExiste) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: AUDITORIA_SHEET } } }] },
+      });
+      // Cabeçalho
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${AUDITORIA_SHEET}!A1`,
+        valueInputOption: "RAW",
+        requestBody: { values: [AUDITORIA_HEADERS] },
+      });
+      // Formata cabeçalho
+      const sheetMeta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+      const sheetId = sheetMeta.data.sheets?.find(s => s.properties?.title === AUDITORIA_SHEET)?.properties?.sheetId;
+      if (sheetId !== undefined) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID,
+          requestBody: {
+            requests: [{
+              repeatCell: {
+                range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+                cell: {
+                  userEnteredFormat: {
+                    backgroundColor: { red: 0.11, green: 0.30, blue: 0.59 },
+                    textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+                  },
+                },
+                fields: "userEnteredFormat(backgroundColor,textFormat)",
+              },
+            }],
+          },
+        });
+      }
+    }
+
+    const agora = new Date().toLocaleString("pt-BR");
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${AUDITORIA_SHEET}!A:F`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: [[agora, entry.usuario, entry.email, entry.acao, entry.modulo, entry.detalhe ?? ""]],
+      },
+    });
+  } catch (e) {
+    // Nunca deixa falhar silenciosamente — auditoria é best-effort
+    console.error("Auditoria error:", e);
+  }
+}

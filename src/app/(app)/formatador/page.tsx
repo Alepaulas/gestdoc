@@ -1,4 +1,5 @@
 "use client";
+"use client";
 import { useState, useRef } from "react";
 import { WandSparkles, Upload, X, Download, FileText, Loader2, CheckCircle, AlertCircle, Info } from "lucide-react";
 import { TIPOS_ORDENADOS, REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";

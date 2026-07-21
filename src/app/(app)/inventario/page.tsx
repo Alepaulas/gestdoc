@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import { useAuditoria, auditarAcao } from "@/lib/useAuditoria";
 import { useEffect, useState, useCallback } from "react";
 import { Search, Package, RefreshCw, Download, ExternalLink, MessageSquarePlus, X, Save } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -18,6 +20,7 @@ interface ObsEntry {
 export default function Inventario() {
   const { data: session } = useSession();
   const [docs, setDocs]           = useState<any[]>([]);
+  useAuditoria("Inventario");
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
   const [search, setSearch]       = useState("");

@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import { useAuditoria, auditarAcao } from "@/lib/useAuditoria";
 import { useEffect, useState, useCallback } from "react";
 import { Search, Download, RefreshCw, ClipboardPlus, AlertCircle, Save, X } from "lucide-react";
 
@@ -45,6 +47,7 @@ export default function Solicitacoes() {
   const [data, setData]           = useState<any[]>([]);
   const [total, setTotal]         = useState(0);
   const [pctConf, setPctConf]     = useState<number|null>(null);
+  useAuditoria("Solicitacoes");
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
   const [search, setSearch]       = useState("");
@@ -86,6 +89,7 @@ export default function Solicitacoes() {
       body: JSON.stringify({ linha: parseInt(editCell.linha), campos: { [editCell.col]: editVal } }),
     });
     setSaving(false);
+    auditarAcao("EDIÇÃO", "Solicitações", `Campo "${editCell?.col}" alterado para "${editVal}"`);
     setEditCell(null);
     await fetchData();
   }
@@ -97,6 +101,7 @@ export default function Solicitacoes() {
     const blob = new Blob(["\uFEFF"+csv], { type:"text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download=`solicitacoes_${new Date().toISOString().split("T")[0]}.csv`; a.click();
+    auditarAcao("EXPORTAÇÃO", "Solicitações", `Exportou ${data.length} solicitações em CSV`);
   }
 
   const concluidas  = data.filter(s => s["STATUS"] === "Publicada").length;

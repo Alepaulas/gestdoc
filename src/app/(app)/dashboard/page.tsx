@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import { useAuditoria, auditarAcao } from "@/lib/useAuditoria";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -16,6 +18,7 @@ export default function Home() {
   const searchParams = useSearchParams();
   const acessoNegado = searchParams.get("acesso") === "negado";
   const [docs, setDocs] = useState<any[]>([]);
+  useAuditoria("Dashboard");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
