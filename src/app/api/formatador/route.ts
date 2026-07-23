@@ -3,43 +3,40 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import JSZip from "jszip";
 import { REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
-import { registrarAuditoria } from "@/lib/auditoria";
+
+// Bullet points: 6.5pt = 13 em half-points
+const BULLET_SIZE = "13";
+
+function isBulletParagraph(pPrInner: string): boolean {
+  // Parágrafos com numPr são listas/bullets
+  return pPrInner.includes("<w:numPr>");
+}
 
 function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
   const regra = REGRAS_FORMATACAO[tipo];
   const { fonte, tamanho, espacamentoLinha, alinhamento } = regra.corpo;
   const aliStr = alinhamento === "both" ? "both" : alinhamento;
 
-  // Separa o XML em parágrafos
-  // A primeira página termina quando há uma quebra de página explícita (<w:lastRenderedPageBreak/> ou <w:pageBreakBefore/> ou <w:br w:type="page"/>)
-  // ou quando encontramos o marcador de fim de capa
+  // ── Remove a capa (tudo até a primeira quebra de página, inclusive) ──
+  const PAGE_BREAK = /<w:br[^>]*w:type="page"[^>]*\/?>|<w:pageBreakBefore\/>/;
+  const breakIdx = xml.search(PAGE_BREAK);
 
-  // Divide o documento em "antes da quebra de página" e "depois"
-  // Quebra de página no Word: <w:br w:type="page"/> ou <w:pageBreakBefore/>
-  const PAGE_BREAK_PATTERN = /<w:br[^>]*w:type="page"[^>]*\/?>|<w:pageBreakBefore\/>/;
-
-  const breakIdx = xml.search(PAGE_BREAK_PATTERN);
-
-  let capa = xml;
-  let corpo = "";
-
+  let corpo = xml;
   if (breakIdx > -1) {
-    // Encontra o fim do parágrafo que contém a quebra de página
     const endOfPara = xml.indexOf("</w:p>", breakIdx);
     if (endOfPara > -1) {
-      capa = xml.slice(0, endOfPara + "</w:p>".length);
-      corpo = xml.slice(endOfPara + "</w:p>".length);
+      // Preserva apenas o conteúdo após a quebra (remove a capa)
+      const bodyStart = xml.indexOf("<w:body>");
+      const bodyContent = bodyStart > -1 ? xml.slice(bodyStart + "<w:body>".length) : xml;
+      const afterBreak = xml.slice(endOfPara + "</w:p>".length);
+      // Reconstrói mantendo tags externas
+      corpo = xml.slice(0, bodyStart + "<w:body>".length) + afterBreak;
     }
-  } else {
-    // Sem quebra de página explícita — tenta separar pela primeira seção (sectPr)
-    // Nesse caso formata tudo mas preserva cabeçalho/primeira seção
-    corpo = xml;
-    capa = "";
   }
 
-  // Aplica formatação apenas no corpo (após a capa)
+  // ── Formata fonte, tamanho, espaçamento — preserva negrito/itálico ──
   function formatarTexto(src: string): string {
-    // Fonte e tamanho nos <w:rPr> — preserva negrito, itálico, etc.
+    // rPr: atualiza fonte e tamanho, preserva negrito/itálico/cor
     src = src.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_match, inner) => {
       let cleaned = inner
         .replace(/<w:rFonts[^>]*\/?>/g, "").replace(/<\/w:rFonts>/g, "")
@@ -52,12 +49,13 @@ function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
       `<w:r><w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:cs="${fonte}" w:eastAsia="${fonte}"/><w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`
     );
 
-    // Espaçamento e alinhamento nos parágrafos
+    // pPr: espaçamento e alinhamento — bullets recebem tamanho menor
     src = src.replace(/<w:pPr>([\s\S]*?)<\/w:pPr>/g, (_match, inner) => {
+      const isBullet = isBulletParagraph(inner);
       let cleaned = inner
         .replace(/<w:spacing[^/]*\/>/g, "")
         .replace(/<w:jc[^/]*\/>/g, "");
-      return `<w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${aliStr}"/>${cleaned}</w:pPr>`;
+      return `<w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${isBullet ? "left" : aliStr}"/>${cleaned}</w:pPr>`;
     });
 
     // Parágrafos sem pPr
@@ -65,11 +63,23 @@ function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
       `<w:p><w:pPr><w:spacing w:line="${espacamentoLinha}" w:lineRule="auto"/><w:jc w:val="${aliStr}"/></w:pPr>`
     );
 
+    // ── Bullets: aplica tamanho 6.5pt nos runs de parágrafos com numPr ──
+    // Identifica parágrafos com bullet e reduz o tamanho do texto
+    src = src.replace(/<w:p>([\s\S]*?)<\/w:p>/g, (_match, inner) => {
+      if (!inner.includes("<w:numPr>")) return _match;
+      // Substitui tamanho apenas neste parágrafo
+      const bulletInner = inner.replace(
+        /<w:sz w:val="[^"]*"\/>/g, `<w:sz w:val="${BULLET_SIZE}"/>`
+      ).replace(
+        /<w:szCs w:val="[^"]*"\/>/g, `<w:szCs w:val="${BULLET_SIZE}"/>`
+      );
+      return `<w:p>${bulletInner}</w:p>`;
+    });
+
     return src;
   }
 
-  // Capa intacta + corpo formatado
-  return capa + formatarTexto(corpo);
+  return formatarTexto(corpo);
 }
 
 function patchStylesXml(xml: string, tipo: TipoDocumento): string {
@@ -100,14 +110,12 @@ export async function POST(req: NextRequest) {
   const tipo = formData.get("tipo") as TipoDocumento | null;
 
   if (!file) return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
-  if (!tipo || !REGRAS_FORMATACAO[tipo]) {
+  if (!tipo || !REGRAS_FORMATACAO[tipo])
     return NextResponse.json({ error: "Tipo de documento inválido." }, { status: 400 });
-  }
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  if (!["docx", "dotx", "dotm"].includes(ext)) {
+  if (!["docx", "dotx", "dotm"].includes(ext))
     return NextResponse.json({ error: "Apenas .docx, .dotx e .dotm são suportados." }, { status: 400 });
-  }
 
   try {
     const arrayBuffer = await file.arrayBuffer();
@@ -124,15 +132,7 @@ export async function POST(req: NextRequest) {
     }
 
     const outputBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-    const regra = REGRAS_FORMATACAO[tipo];
     const outName = file.name.replace(/(\.\w+)$/, `_${tipo}_formatado$1`);
-
-    const userId = (session.user as any).id as string;
-    await registrarAuditoria({
-      userId,
-      acao: "FORMATADOR_USO",
-      descricao: `Formatou documento "${file.name}" como ${tipo} (${regra.nome})`,
-    });
 
     return new NextResponse(outputBuffer, {
       headers: {
