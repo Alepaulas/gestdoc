@@ -17,20 +17,46 @@ function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
   const { fonte, tamanho, espacamentoLinha, alinhamento } = regra.corpo;
   const aliStr = alinhamento === "both" ? "both" : alinhamento;
 
-  // ── Remove a capa (tudo até a primeira quebra de página, inclusive) ──
-  const PAGE_BREAK = /<w:br[^>]*w:type="page"[^>]*\/?>|<w:pageBreakBefore\/>/;
-  const breakIdx = xml.search(PAGE_BREAK);
+  // ── Remove a capa (WPS Office / Word / LibreOffice) ──
+  // WPS usa: <w:lastRenderedPageBreak/>, <w:br w:type="page"/>, ou <w:sectPr> interno
+  const PAGE_BREAK_PATTERNS = [
+    /<w:br[^>]*w:type="page"[^>]*\/?>/,   // Word/WPS padrão
+    /<w:lastRenderedPageBreak\/>/,          // WPS Office
+    /<w:pageBreakBefore\/>/,               // pageBreak antes do parágrafo
+  ];
 
   let corpo = xml;
+  let breakIdx = -1;
+
+  for (const pattern of PAGE_BREAK_PATTERNS) {
+    const idx = xml.search(pattern);
+    if (idx > -1 && (breakIdx === -1 || idx < breakIdx)) {
+      breakIdx = idx;
+    }
+  }
+
+  // Tenta também detectar pelo sectPr interno (WPS coloca sectPr no meio para separar seções)
+  const sectPrMidIdx = xml.indexOf("<w:sectPr>");
+  const sectPrMidIdx2 = xml.indexOf("<w:sectPr ");
+  const sectPrIdx = sectPrMidIdx > -1 ? sectPrMidIdx : sectPrMidIdx2;
+
+  // Usa sectPr apenas se não encontrou quebra explícita, e se há conteúdo após ele
+  if (breakIdx === -1 && sectPrIdx > -1) {
+    const afterSect = xml.indexOf("</w:sectPr>", sectPrIdx);
+    if (afterSect > -1 && xml.indexOf("<w:p>", afterSect) > -1) {
+      breakIdx = sectPrIdx;
+    }
+  }
+
   if (breakIdx > -1) {
+    // Encontra o fim do parágrafo que contém a quebra
     const endOfPara = xml.indexOf("</w:p>", breakIdx);
     if (endOfPara > -1) {
-      // Preserva apenas o conteúdo após a quebra (remove a capa)
       const bodyStart = xml.indexOf("<w:body>");
-      const bodyContent = bodyStart > -1 ? xml.slice(bodyStart + "<w:body>".length) : xml;
       const afterBreak = xml.slice(endOfPara + "</w:p>".length);
-      // Reconstrói mantendo tags externas
-      corpo = xml.slice(0, bodyStart + "<w:body>".length) + afterBreak;
+      corpo = bodyStart > -1
+        ? xml.slice(0, bodyStart + "<w:body>".length) + afterBreak
+        : afterBreak;
     }
   }
 
