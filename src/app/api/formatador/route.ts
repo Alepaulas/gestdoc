@@ -17,46 +17,41 @@ function patchDocumentXml(xml: string, tipo: TipoDocumento): string {
   const { fonte, tamanho, espacamentoLinha, alinhamento } = regra.corpo;
   const aliStr = alinhamento === "both" ? "both" : alinhamento;
 
-  // ── Remove a capa (WPS Office / Word / LibreOffice) ──
-  // WPS usa: <w:lastRenderedPageBreak/>, <w:br w:type="page"/>, ou <w:sectPr> interno
-  const PAGE_BREAK_PATTERNS = [
-    /<w:br[^>]*w:type="page"[^>]*\/?>/,   // Word/WPS padrão
-    /<w:lastRenderedPageBreak\/>/,          // WPS Office
-    /<w:pageBreakBefore\/>/,               // pageBreak antes do parágrafo
-  ];
-
+  // ── Remove a capa (WPS Office) ──
+  // WPS não usa quebra de página explícita — a capa é formada por
+  // parágrafos em branco + primeira tabela (HISTÓRICO DE ANÁLISE)
+  // Estratégia: remove tudo até o fim da primeira <w:tbl>
   let corpo = xml;
-  let breakIdx = -1;
 
-  for (const pattern of PAGE_BREAK_PATTERNS) {
-    const idx = xml.search(pattern);
-    if (idx > -1 && (breakIdx === -1 || idx < breakIdx)) {
-      breakIdx = idx;
+  const bodyStart = xml.indexOf("<w:body>");
+  const bodyTag = "<w:body>";
+
+  if (bodyStart > -1) {
+    const bodyContent = xml.slice(bodyStart + bodyTag.length);
+
+    // Tenta quebra de página explícita primeiro (Word padrão)
+    const pageBreakMatch = bodyContent.match(/<w:br[^>]*w:type="page"[^>]*\/?>/);
+    const lastRenderedMatch = bodyContent.match(/<w:lastRenderedPageBreak\/>/);
+
+    let cutAfter = -1;
+
+    if (pageBreakMatch?.index !== undefined) {
+      const endPara = bodyContent.indexOf("</w:p>", pageBreakMatch.index);
+      if (endPara > -1) cutAfter = endPara + "</w:p>".length;
+    } else if (lastRenderedMatch?.index !== undefined) {
+      const endPara = bodyContent.indexOf("</w:p>", lastRenderedMatch.index);
+      if (endPara > -1) cutAfter = endPara + "</w:p>".length;
+    } else {
+      // WPS sem quebra explícita: remove até o fim da primeira tabela
+      const tblStart = bodyContent.indexOf("<w:tbl");
+      if (tblStart > -1) {
+        const tblEnd = bodyContent.indexOf("</w:tbl>", tblStart);
+        if (tblEnd > -1) cutAfter = tblEnd + "</w:tbl>".length;
+      }
     }
-  }
 
-  // Tenta também detectar pelo sectPr interno (WPS coloca sectPr no meio para separar seções)
-  const sectPrMidIdx = xml.indexOf("<w:sectPr>");
-  const sectPrMidIdx2 = xml.indexOf("<w:sectPr ");
-  const sectPrIdx = sectPrMidIdx > -1 ? sectPrMidIdx : sectPrMidIdx2;
-
-  // Usa sectPr apenas se não encontrou quebra explícita, e se há conteúdo após ele
-  if (breakIdx === -1 && sectPrIdx > -1) {
-    const afterSect = xml.indexOf("</w:sectPr>", sectPrIdx);
-    if (afterSect > -1 && xml.indexOf("<w:p>", afterSect) > -1) {
-      breakIdx = sectPrIdx;
-    }
-  }
-
-  if (breakIdx > -1) {
-    // Encontra o fim do parágrafo que contém a quebra
-    const endOfPara = xml.indexOf("</w:p>", breakIdx);
-    if (endOfPara > -1) {
-      const bodyStart = xml.indexOf("<w:body>");
-      const afterBreak = xml.slice(endOfPara + "</w:p>".length);
-      corpo = bodyStart > -1
-        ? xml.slice(0, bodyStart + "<w:body>".length) + afterBreak
-        : afterBreak;
+    if (cutAfter > -1) {
+      corpo = xml.slice(0, bodyStart + bodyTag.length) + bodyContent.slice(cutAfter);
     }
   }
 
