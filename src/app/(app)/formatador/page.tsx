@@ -1,5 +1,4 @@
 "use client";
-"use client";
 import { useState, useRef } from "react";
 import { WandSparkles, Upload, X, Download, FileText, Loader2, CheckCircle, AlertCircle, Info } from "lucide-react";
 import { TIPOS_ORDENADOS, REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
@@ -8,10 +7,20 @@ type FileItem = {
   id: string;
   file: File;
   status: "pending" | "processing" | "done" | "error";
-  outUrl?: string;
-  outName?: string;
+  pdfUrl?: string;
+  pdfName?: string;
+  docxUrl?: string;
+  docxName?: string;
+  matched?: boolean;
   error?: string;
 };
+
+function base64ToBlob(base64: string, mime: string): Blob {
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
 
 function formatBytes(b: number) {
   if (b < 1024) return b + " B";
@@ -48,16 +57,25 @@ export default function FormatadorPage() {
         fd.append("file", item.file);
         fd.append("tipo", tipo);
         const res = await fetch("/api/formatador", { method: "POST", body: fd });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error ?? res.statusText);
-        }
-        const blob = await res.blob();
-        const cd = res.headers.get("Content-Disposition") ?? "";
-        const match = cd.match(/filename="?([^"]+)"?/);
-        const outName = match?.[1] ?? item.file.name.replace(/(\.\w+)$/, `_${tipo}_formatado$1`);
-        const outUrl = URL.createObjectURL(blob);
-        setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: "done", outUrl, outName } : i));
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.error ?? res.statusText);
+
+        const { nomeBase, docxBase64, pdfBase64, matched } = j as {
+          nomeBase: string; docxBase64: string; pdfBase64: string; matched: boolean;
+        };
+
+        const docxBlob = base64ToBlob(docxBase64, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        const pdfBlob = base64ToBlob(pdfBase64, "application/pdf");
+
+        setItems(prev => prev.map(i => i.id === item.id ? {
+          ...i,
+          status: "done",
+          matched,
+          docxUrl: URL.createObjectURL(docxBlob),
+          docxName: `${nomeBase}.docx`,
+          pdfUrl: URL.createObjectURL(pdfBlob),
+          pdfName: `${nomeBase}.pdf`,
+        } : i));
       } catch (err: any) {
         setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: "error", error: err.message } : i));
       }
@@ -158,14 +176,26 @@ export default function FormatadorPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-700 truncate">{item.file.name}</p>
                 {item.status === "pending"    && <p className="text-xs text-slate-400">{formatBytes(item.file.size)}</p>}
-                {item.status === "done"       && <p className="text-xs text-green-600">Formatado — {tipo} ({regra?.nome})</p>}
+                {item.status === "done" && (
+                  <p className={`text-xs ${item.matched ? "text-green-600" : "text-amber-600"}`}>
+                    {item.matched
+                      ? `Formatado — ${tipo} (${regra?.nome})`
+                      : `Formatado, mas não encontrei esse documento na planilha BASE_DOCUMENTOS — usei o nome original.`}
+                  </p>
+                )}
                 {item.status === "error"      && <p className="text-xs text-red-500">{item.error}</p>}
               </div>
-              {item.status === "done" && item.outUrl && (
-                <a href={item.outUrl} download={item.outName}
-                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-                  <Download className="w-3 h-3" /> Baixar
-                </a>
+              {item.status === "done" && item.pdfUrl && item.docxUrl && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a href={item.pdfUrl} download={item.pdfName}
+                    className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                    <Download className="w-3 h-3" /> PDF
+                  </a>
+                  <a href={item.docxUrl} download={item.docxName}
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                    <Download className="w-3 h-3" /> DOCX
+                  </a>
+                </div>
               )}
               {item.status !== "processing" && (
                 <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
