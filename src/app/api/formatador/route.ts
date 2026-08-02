@@ -6,6 +6,8 @@ import { REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
 import { buscarDocumentoPorNomeArquivo, montarNomeArquivo } from "@/lib/baseDocumentos";
 import { converterDocxParaPdf } from "@/lib/drive";
 
+export const runtime = "nodejs";
+
 // Bullet points: 6.5pt = 13 em half-points
 const BULLET_SIZE = "13";
 
