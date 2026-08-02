@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { Readable } from "stream";
 import { queryOne } from "./db";
 
 async function getDriveClient(userId: string) {
@@ -11,7 +12,6 @@ async function getDriveClient(userId: string) {
 
 export async function uploadToDrive(userId: string, fileName: string, mimeType: string, buffer: Buffer) {
   const drive = await getDriveClient(userId);
-  const { Readable } = await import("stream");
   const meta: any = { name: fileName };
   if (process.env.GOOGLE_DRIVE_FOLDER_ID) meta.parents = [process.env.GOOGLE_DRIVE_FOLDER_ID];
   const res = await drive.files.create({
@@ -39,7 +39,6 @@ export async function converterDocxParaPdf(
   const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
   oauth2.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
   const drive = google.drive({ version: "v3", auth: oauth2 });
-  const { Readable } = await import("stream");
 
   const upload = await drive.files.create({
     requestBody: {
