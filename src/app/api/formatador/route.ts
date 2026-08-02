@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import JSZip from "jszip";
 import { REGRAS_FORMATACAO, type TipoDocumento } from "@/lib/normaZero";
+import { buscarDocumentoPorNomeArquivo, montarNomeArquivo } from "@/lib/baseDocumentos";
+import { converterDocxParaPdf } from "@/lib/drive";
 
 // Bullet points: 6.5pt = 13 em half-points
 const BULLET_SIZE = "13";
@@ -126,6 +128,11 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const accessToken = (session as any).accessToken as string | undefined;
+  const refreshToken = (session as any).refreshToken as string | undefined;
+  if (!accessToken)
+    return NextResponse.json({ error: "Token Google não encontrado. Faça logout e login novamente." }, { status: 401 });
+
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const tipo = formData.get("tipo") as TipoDocumento | null;
@@ -139,6 +146,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Apenas .docx, .dotx e .dotm são suportados." }, { status: 400 });
 
   try {
+    // ── 1) Formata o .docx (remove capa, aplica fonte/margens da Norma Zero) ──
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
 
@@ -152,14 +160,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const outputBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-    const outName = file.name.replace(/(\.\w+)$/, `_${tipo}_formatado$1`);
+    const docxBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 
-    return new NextResponse(outputBuffer, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${outName}"`,
-      },
+    // ── 2) Busca o documento na planilha BASE_DOCUMENTOS pelo nome do arquivo ──
+    const doc = await buscarDocumentoPorNomeArquivo(accessToken, refreshToken, file.name).catch(() => null);
+
+    const matched = !!doc;
+    const nomeBase = doc
+      ? montarNomeArquivo(doc)
+      : file.name.replace(/(\.\w+)$/, `_${tipo}_formatado`); // fallback: não achou na planilha
+
+    // ── 3) Converte para PDF sem capa via Google Drive (usa o docx já sem capa) ──
+    const pdfBuffer = await converterDocxParaPdf(
+      accessToken,
+      refreshToken,
+      docxBuffer,
+      `_tmp_formatador_${Date.now()}`
+    );
+
+    return NextResponse.json({
+      matched,
+      nomeBase,
+      docxBase64: docxBuffer.toString("base64"),
+      pdfBase64: pdfBuffer.toString("base64"),
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Erro ao formatar." }, { status: 500 });
