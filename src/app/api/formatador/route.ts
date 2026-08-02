@@ -187,6 +187,13 @@ export async function POST(req: NextRequest) {
       pdfBase64: pdfBuffer.toString("base64"),
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? "Erro ao formatar." }, { status: 500 });
+    // Erros do googleapis vêm aninhados em err.response.data.error — captura
+    // a mensagem real em vez do genérico "Bad Request"
+    const googleMsg =
+      err?.response?.data?.error?.message ??
+      err?.errors?.[0]?.message ??
+      err?.message;
+    console.error("[formatador] erro:", JSON.stringify(err?.response?.data ?? err, null, 2));
+    return NextResponse.json({ error: googleMsg ?? "Erro ao formatar." }, { status: 500 });
   }
 }
